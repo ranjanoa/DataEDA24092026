@@ -1,4 +1,0 @@
-Variable;Description;Unit;Scale min;Scale max
-temperature;Temp of kiln;C;80;160
-pressure;Pressure of kiln;bar;5;25
-flow_rate;Flow of air;m3/h;40;80

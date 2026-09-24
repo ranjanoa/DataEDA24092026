@@ -189,77 +189,57 @@ def filter_columns(df: pd.DataFrame, min_nonzero_pct: float = 0.0) -> pd.DataFra
 
 def calculate_derived_var(df: pd.DataFrame, name: str, formula: str) -> pd.DataFrame:
     """
-    Add a new column based on a formula with fuzzy column matching and backtick handling.
+    Add a new column based on a formula with exact and fuzzy column matching.
+    Handles column names with parentheses, hyphens, and spaces cleanly.
     """
     import re
-    def norm(s):
-        return re.sub(r'[^a-z0-9]', '', str(s).lower())
-
+    df = df.copy()
     df_cols = list(df.columns)
+    cols_sorted = sorted(df_cols, key=len, reverse=True)
     
-    tokens = re.findall(r'[a-zA-Z_#][a-zA-Z0-9_#\-\.]*', formula)
-    reserved = {'np', 'abs', 'min', 'max', 'sum', 'mean', 'std', 'log', 'exp', 'sqrt'}
-    var_tokens = [t for t in tokens if t not in reserved]
+    env = {}
+    temp_formula = formula.strip()
     
-    sorted_tokens = sorted(set(var_tokens), key=len, reverse=True)
-    temp_formula = formula
-    
-    for token in sorted_tokens:
-        if token in df_cols:
-            matched = token
-        else:
+    # 1. Match exact columns first (e.g. KILN_FEED_SET_POINT_RF_(Line_A_-_Pen_5))
+    for i, col in enumerate(cols_sorted):
+        if col in temp_formula:
+            token_id = f"__col_{i}__"
+            temp_formula = temp_formula.replace(col, token_id)
+            env[token_id] = pd.to_numeric(df[col], errors='coerce')
+
+    # 2. Fuzzy match any remaining word tokens if needed
+    if any(c.isalpha() for c in temp_formula if c not in env):
+        def norm(s):
+            return re.sub(r'[^a-z0-9]', '', str(s).lower())
+
+        tokens = re.findall(r'[a-zA-Z_#][a-zA-Z0-9_#\-\.]*', temp_formula)
+        reserved = {'np', 'abs', 'min', 'max', 'sum', 'mean', 'std', 'log', 'exp', 'sqrt'}
+        var_tokens = [t for t in tokens if t not in reserved and not t.startswith('__col_')]
+
+        for token in sorted(set(var_tokens), key=len, reverse=True):
             token_norm = norm(token)
             matched = None
             for c in df_cols:
                 if norm(c) == token_norm:
                     matched = c
                     break
-            if not matched:
-                for c in df_cols:
-                    cn = norm(c)
-                    if token_norm and (token_norm in cn or cn in token_norm):
-                        matched = c
-                        break
-            if not matched and df_cols:
-                try:
-                    float(token)
-                except ValueError:
-                    num_cols = df.select_dtypes(include=[np.number]).columns
-                    matched = num_cols[0] if len(num_cols) > 0 else df_cols[0]
-                    
-        if matched:
-            safe_matched = f"`{matched}`" if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', matched) else matched
-            escaped_token = re.escape(token)
-            pattern = r'(?<!`)(?<![a-zA-Z0-9_])' + escaped_token + r'(?![a-zA-Z0-9_])(?!`)'
-            temp_formula = re.sub(pattern, safe_matched, temp_formula)
+            if matched and matched in df.columns:
+                token_id = f"__col_{len(env)}__"
+                temp_formula = temp_formula.replace(token, token_id)
+                env[token_id] = pd.to_numeric(df[matched], errors='coerce')
 
-    cols_sorted = sorted(df_cols, key=len, reverse=True)
-    for col in cols_sorted:
-        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', col):
-            escaped_col = re.escape(col)
-            pattern = r'(?<!`)(?<![a-zA-Z0-9_])' + escaped_col + r'(?![a-zA-Z0-9_])(?!`)'
-            temp_formula = re.sub(pattern, f'`{col}`', temp_formula)
-            
     try:
-        df[name] = df.eval(temp_formula)
-        return df
-    except Exception as e:
-        logger.warning(f"df.eval failed for {name} = {temp_formula}, trying fallback: {e}")
-        
-    try:
-        env = {}
-        clean_py_formula = temp_formula.replace('`', '')
-        for i, col in enumerate(cols_sorted):
-            if col in clean_py_formula:
-                token_id = f"__col_{i}__"
-                clean_py_formula = clean_py_formula.replace(col, token_id)
-                env[token_id] = pd.to_numeric(df[col], errors='coerce')
-        res = eval(clean_py_formula, {"np": np, "abs": abs, "min": min, "max": max}, env)
-        df[name] = pd.Series(res, index=df.index)
-        return df
+        allowed_globals = {"np": np, "abs": abs, "min": min, "max": max, "sum": sum}
+        res = eval(temp_formula, allowed_globals, env)
+        if isinstance(res, (pd.Series, np.ndarray, list, float, int)):
+            df[name] = pd.Series(res, index=df.index)
+            logger.info(f"Successfully calculated derived variable {name} = {formula}")
+            return df
     except Exception as err:
         logger.error(f"Error calculating derived var {name} = {formula}: {err}")
-        raise ValueError(f"{err}")
+        raise ValueError(f"Failed to calculate derived variable '{name}': {err}")
+
+    return df
 
 def process_extra_dataset(
     current_df: pd.DataFrame, 

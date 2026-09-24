@@ -57,4 +57,21 @@ project/
 # Environment
 .env
 
+# Non-application prompts, presentation folders, and test/scratch scripts
+SPCC/
+Bursa Cimento/
+adana/
+*.md
+!README.md
+*.docx
+*.pdf
+cols.txt
+columns_list.txt
+adana_doc_text.txt
+walkthroughfilter.md
+patch_renderer.py
+debug_parse.py
+test_*.py
+timetrim.py
+
 

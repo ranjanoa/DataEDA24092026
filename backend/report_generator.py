@@ -225,9 +225,10 @@ def process_prompt_template(df: pd.DataFrame, query_str: str) -> str:
         if any(k in first_title for k in ['prompt', 'persona', 'instruction', 'system']):
             clean_text = clean_text[header_matches[1].start():]
 
-    clean_text = re.sub(r'>\s*[🛑⚠️🚨].*?\n\n', '', clean_text, flags=re.DOTALL)
+    clean_text = re.sub(r'>\s*[🛑⚠️🚨🔴].*?\n\n', '', clean_text, flags=re.DOTALL)
     clean_text = re.sub(r'##\s*Persona:.*?\n\n', '', clean_text, flags=re.DOTALL)
     clean_text = re.sub(r'Run the Prerequisite FIRST.*?\n\n', '', clean_text, flags=re.DOTALL)
+    clean_text = re.sub(r'(?:Write|Execute|Detail|Provide)\s+(?:9\s+|complete\s+|thorough\s+)?(?:engineering\s+)?(?:insights|analysis|directives):?\s*\n', '', clean_text, flags=re.IGNORECASE)
     
     # Extract markdown block if prompt is wrapped in ```markdown ... ```
     if clean_text.strip().startswith('```markdown') and clean_text.strip().endswith('```'):
@@ -255,7 +256,7 @@ def process_prompt_template(df: pd.DataFrame, query_str: str) -> str:
     lines = clean_text.split('\n')
     new_lines = []
     for line in lines:
-        if line.strip().startswith('|') and not ('---' in line or 'Variable' in line or 'Min' in line or 'Golden' in line):
+        if line.strip().startswith('|') and not ('---' in line or 'Variable' in line or 'Min' in line or 'Golden' in line or 'Parameter' in line):
             new_lines.append(populate_table_row(line))
         else:
             new_lines.append(line)
