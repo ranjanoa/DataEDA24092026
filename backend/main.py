@@ -297,13 +297,36 @@ async def get_plot_data(
         
         # Replace infs/nans with nan first to drop them or clean them
         subset = subset.replace([np.inf, -np.inf], np.nan)
-        subset = subset.dropna()
+        # We do NOT dropna() here because we want to preserve NaN as gaps in line graphs
+        # subset = subset.dropna()
         
         # Downsample
         sampled = downsample_for_plot(subset, max_points)
+        sampled = sampled.reset_index(drop=True)
         
         # Convert to records
-        if 'timestamp' in sampled.columns:
+        if x_var == 'timestamp' and 'timestamp' in sampled.columns:
+            diffs = pd.to_datetime(sampled['timestamp']).diff()
+            median_diff = diffs.median()
+            if pd.notna(median_diff) and median_diff.total_seconds() > 0:
+                threshold = median_diff * 5
+                gap_mask = diffs > threshold
+                if gap_mask.any():
+                    gap_rows = []
+                    for i in range(len(gap_mask)):
+                        if gap_mask.iloc[i]:
+                            prev_time = pd.to_datetime(sampled.iloc[i-1]['timestamp'])
+                            curr_time = pd.to_datetime(sampled.iloc[i]['timestamp'])
+                            gap_time = prev_time + (curr_time - prev_time) / 2
+                            row = {c: np.nan for c in sampled.columns}
+                            row['timestamp'] = gap_time
+                            gap_rows.append(row)
+                    if gap_rows:
+                        gap_df = pd.DataFrame(gap_rows)
+                        # We must ensure timestamps are parsed as datetime for sorting
+                        sampled['timestamp'] = pd.to_datetime(sampled['timestamp'])
+                        sampled = pd.concat([sampled, gap_df]).sort_values('timestamp').reset_index(drop=True)
+
             sampled['timestamp'] = sampled['timestamp'].astype(str)
             
         data = sampled.to_dict(orient='list')

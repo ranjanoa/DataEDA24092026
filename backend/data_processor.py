@@ -69,6 +69,17 @@ def load_data(file_content: bytes, filename: str) -> pd.DataFrame:
                      df[col] = df[col].astype(str).str.replace(',', '.', regex=False)
                 df[col] = pd.to_numeric(df[col], errors='coerce')
                 
+        # Remove extreme outliers (sensor glitches)
+        for col in df.columns:
+            if col != 'timestamp' and pd.api.types.is_numeric_dtype(df[col]):
+                q_low = df[col].quantile(0.01)
+                q_high = df[col].quantile(0.99)
+                iqr = q_high - q_low
+                if iqr > 0:
+                    lower_bound = q_low - 1.5 * iqr
+                    upper_bound = q_high + 1.5 * iqr
+                    df.loc[(df[col] < lower_bound) | (df[col] > upper_bound), col] = np.nan
+                
         return df
     except Exception as e:
         logger.error(f"Error loading file {filename}: {e}")
