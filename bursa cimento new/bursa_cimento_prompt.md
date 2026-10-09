@@ -142,16 +142,16 @@ State the complete operating window as a filled table:
 ### STEP 10 — VALUE LOST QUANTIFICATION
 Recalculate all numbers dynamically using the statistics above:
 - **Production Opportunity**: Gap = (240.00 − 221.58) × 8,120 hours/year = 149,606 t/yr. Calculate financial value at **$50/ton** of clinker ($7,480,300/yr).
-- **Alternative Fuel Savings**: Calculate savings of substituting coal with higher RDF usage.
+- **Alternative Fuel Savings**: Current average total coal is 20.39 t/h. The Golden Batch targets 18.0 t/h by substituting with RDF. Gap = (20.39 - 18.00) = 2.39 t/h of coal saved. Annual savings = 2.39 × 8,120 = 19,406 t/yr of coal. At **$120/ton** of coal, this equals ~$2,328,720/yr.
 - **Quality Cost Reduction**: Value of stabilizing `KLINKER_SCAO` below 1.5%, avoiding corrective grinding.
 
 Present this completed summary table:
 | Opportunity | Annual Quantity | Financial Value |
 |---|---|---|
-| Production (conservative) | 149,606 t/yr | ~$7.48M at $50/t |
-| Fuel & RDF saving | [Calculated t/yr] | [Calculated $ value] |
-| Quality & C3S improvement | Better mineralogy | Avoided quality adjustments |
-| **TOTAL (conservative)** | | **[Sum of Financial Value]** |
+| Production (conservative) | 149,606 t/yr of Clinker | ~$7.48M at $50/t |
+| Fuel & RDF saving | 19,406 t/yr of Coal Saved | ~$2.32M at $120/t |
+| Quality & C3S improvement | Stable Free Lime < 1.5% | Avoided quality adjustments |
+| **TOTAL (conservative)** | | **~$9.80M / year** |
 
 ---
 
