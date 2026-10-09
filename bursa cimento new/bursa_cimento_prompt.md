@@ -15,7 +15,7 @@
 
 ### Dataset Overview:
 - **Resolution**: 1-minute interval data
-- **Size**: 240,414 historical process records (approx. 167 days of continuous operation)
+- **Size**: 240,414 historical process records (approx. 167 days of continuous operation from February 11, 2026 to August 6, 2026)
 - **Variables**: 32 synchronized pyro-process & laboratory quality variables
 
 ### Process Statistics:
