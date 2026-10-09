@@ -13,6 +13,12 @@
 
 ## 📊 DATASET REFERENCE STATISTICS (BURSA CIMENTO OPERATIONAL DATA)
 
+### Dataset Overview:
+- **Resolution**: 1-minute interval data
+- **Size**: 240,414 historical process records (approx. 167 days of continuous operation)
+- **Variables**: 32 synchronized pyro-process & laboratory quality variables
+
+### Process Statistics:
 - **Total Kiln Feed (`KILN FEED`)**: average = 340.9 t/h | peak = 406.3 t/h | Stable Range = 0 - 350.1 t/h
 - **Clinker Production (`Clinker_Production_tph`)**: average = 221.6 t/h (Derived at 0.65 ratio)
 - **Kiln Speed (`KILN SPEED`)**: average = 3.11 rpm | High-Feed Stable Range (at >340 t/h) = 3.22 - 3.50 rpm
