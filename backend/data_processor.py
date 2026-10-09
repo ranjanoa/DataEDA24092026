@@ -20,6 +20,21 @@ def load_data(file_content: bytes, filename: str) -> pd.DataFrame:
                 df = pd.read_csv(io.BytesIO(file_content), sep=';', encoding='latin1')
         elif filename.endswith(('.xls', '.xlsx')):
             df = pd.read_excel(io.BytesIO(file_content))
+            # Fix for CSV data saved as Excel in a single column
+            if df.shape[1] == 1:
+                col_name = str(df.columns[0])
+                if ',' in col_name or ';' in col_name:
+                    sep = ';' if ';' in col_name else ','
+                    try:
+                        import io as _io
+                        stream = _io.StringIO()
+                        stream.write(col_name + '\n')
+                        for val in df.iloc[:, 0]:
+                            stream.write(str(val) + '\n')
+                        stream.seek(0)
+                        df = pd.read_csv(stream, sep=sep, engine='python')
+                    except Exception as ex:
+                        logger.warning(f"Attempted to split single-column Excel file but failed: {ex}")
         else:
             raise ValueError("Unsupported file format")
         
