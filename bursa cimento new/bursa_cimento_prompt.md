@@ -59,8 +59,8 @@
 [SCATTER: X=KILN_SPEED | Y=KILN_MAIN_DRIVE_(M02)_CURRENT | COLOR=SECONDARY_AIR_TEMP | SCALE=Viridis]
 
 **Engineering Diagnostics & Insights**:
-- **Mechanical Drive Stress**: `KILN FEED` directly dictates the mechanical torque needed. Surges in drive current above 250 A without a corresponding increase in feed indicate unstable kiln coating.
-- **RPM Matching**: As feed approaches 370 t/h, kiln speed must be coordinated to maintain an optimal volumetric filling degree and prevent material flushing. This strict adherence is confirmed by the massive **+0.995 correlation between `KILN_SPEED` and `KILN_FEED`**.
+- **Mechanical Drive Stress**: `KILN FEED` directly dictates the mechanical torque needed. Surges in drive current above 250 A without a corresponding increase in feed indicate unstable kiln coating, potential ring formations in the burning zone, or severe snowmen build-up forcing the mechanical drive into overload.
+- **RPM Matching**: As feed approaches 370 t/h, kiln speed must be rigidly pushed to maintain an optimal 11-13% volumetric filling degree to prevent uncalcined meal from flushing into the burning zone. This strict adherence is confirmed by the massive **+0.995 correlation between `KILN_SPEED` and `KILN_FEED`**.
 
 ---
 
@@ -73,8 +73,8 @@
 [SCATTER: X=MAIN_BURNER_COAL | Y=RDF_SATELLITEBURNER | COLOR=Specific_Fuel_Consumption | SCALE=RdBu]
 
 **Engineering Diagnostics & Insights**:
-- **Fuel Substitution via Recuperation**: `SECONDARY AIR TEMP` is a critical efficiency metric. Operating consistently at higher temperatures lowers the `Specific_Fuel_Consumption`.
-- **Alternative Fuel Limits**: High `RDF SATELLITEBURNER` flow must be balanced against `MAIN BURNER COAL` to prevent unstable burning zones.
+- **Fuel Substitution via Recuperation**: `SECONDARY AIR TEMP` is our most critical thermal flywheel. Operating consistently above 1000°C directly lowers the `Specific_Fuel_Consumption`, pushing thermal efficiency closer to world-class standards by minimizing the need for expensive main burner coal.
+- **Alternative Fuel Limits**: High `RDF_SATELLITEBURNER` flow must be carefully balanced against `MAIN_BURNER_COAL`. Over-reliance on RDF without proper burner momentum risks severe CO spikes, thermal decoupling, and dragging the clinker liquid phase formation further back into the kiln.
 
 ---
 
@@ -87,8 +87,8 @@
 [SCATTER: X=KLINKER_SCAO | Y=KLINKER_C3S | COLOR=Specific_Fuel_Consumption | SCALE=Viridis]
 
 **Engineering Diagnostics & Insights**:
-- **Burnability Indicator**: `KLINKER SCAO` (Free Lime) is the definitive indicator of burning zone health. When `SECONDARY AIR TEMP` drops, Free Lime spikes above 2.5%, indicating under-burning and poor nodulization.
-- **Quality vs Efficiency Trade-off**: High C3S requires intense heat, which naturally lowers Free Lime but can increase `Specific_Fuel_Consumption`. The goal is to hit the sweet spot (SCAO ~1.0-1.5%, C3S > 60%) using recuperated heat rather than just pushing more `MAIN BURNER COAL`.
+- **Burnability Indicator**: `KLINKER SCAO` (Free Lime) is the definitive indicator of burning zone health. When `SECONDARY AIR TEMP` drops and Free Lime spikes above 2.5%, the kiln is suffering from thermal starvation, leading to under-burned, dusty clinker that will degrade final cement strength.
+- **Quality vs Efficiency Trade-off**: High C3S requires intense, localized heat. The operational challenge is to hit the 'Golden Zone' (SCAO ~1.0-1.5%, C3S > 60%) using maximized secondary air heat recuperation rather than just dumping more `MAIN_BURNER_COAL`, which unnecessarily penalizes the SFC and risks burning out the refractory brick lining.
 
 ---
 
@@ -98,7 +98,7 @@
 [SCATTER: X=SECONDARY_AIR_TEMP | Y=NH3_CONSUMPTION | COLOR=PRE_HEATER_OUTLET_O2 | SCALE=Viridis]
 
 **Engineering Diagnostics & Insights**:
-- **NOX Control via NH3**: High `SECONDARY AIR TEMP` and high `PRE HEATER OUTLET O2` often trigger higher NOX formation, necessitating more NH3. Balancing excess air is key to minimizing both emissions and reagent costs.
+- **NOX Control via NH3**: Thermal NOX generation is highly sensitive to peak flame temperature and excess oxygen. High `SECONDARY AIR TEMP` combined with excess `PRE HEATER OUTLET O2` triggers rampant NOX formation, necessitating heavy NH3 dosing. The operator must choke back excess air to minimize NOX at the source, preventing excessive reagent (`NH3_CONSUMPTION`) costs.
 
 ---
 
@@ -110,7 +110,7 @@
 [SCATTER: X=PRE_HEATER_OUTLET_O2 | Y=PRE HEATER FAN OUTLET | COLOR=KILN_FEED | SCALE=Jet]
 
 **Engineering Diagnostics & Insights**:
-- **Aerodynamics & Draft Symmetry**: Proper draft is non-negotiable. The system shows near-perfect symmetry with a **+0.998 correlation between `PRESSURE_AFTER_PRE-HEATER_1` and `2`**. We must minimize system pressure drop and false air to maintain production without hitting the fan ceiling.
+- **Aerodynamics & Draft Symmetry**: Proper draft is non-negotiable for a 340+ t/h line. The system shows near-perfect symmetry with a **+0.998 correlation between `PRESSURE_AFTER_PRE-HEATER_1` and `2`**. Any deviation from this symmetry immediately flags cyclone blockages or massive false air ingress. We must ruthlessly minimize system pressure drop to maintain production without red-lining the ID fan capacity.
 
 ---
 
@@ -120,7 +120,7 @@
 [SCATTER: X=COOLER_EXHAUST_AIR_TEMP | Y=SECONDARY_AIR_TEMP | COLOR=COOLER_FAN_KW | SCALE=Hot]
 
 **Engineering Diagnostics & Insights**:
-- **Fan Power Optimization**: Deep clinker beds force cooling fans into high power draw (proven by the **+0.991 correlation between `COOLER_FAN_SPEED` and `COOLER_FAN_KW`**). Optimizing the grate reduces pressure and saves kW, but must be carefully balanced against preserving high `SECONDARY AIR TEMP` for the burning zone.
+- **Fan Power Optimization**: The clinker bed depth dictates the entire cooler thermal efficiency. Deep beds force cooling fans into severe power draw (proven by the **+0.991 correlation between `COOLER_FAN_SPEED` and `COOLER_FAN_KW`**). Speeding up the grate reduces pressure and sheds massive electrical kW load, but the operator must execute this without blowing cold air through the bed and destroying our `SECONDARY_AIR_TEMP` thermal flywheel.
 
 ---
 
