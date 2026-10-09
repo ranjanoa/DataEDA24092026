@@ -151,6 +151,7 @@ Present this completed summary table:
 | Production Increase | 18.42 t/h extra Clinker | **+8.31%** Throughput |
 | Coal Reduction (via RDF) | 2.39 t/h of Coal Saved | **-11.72%** Coal Usage |
 | Quality & C3S improvement | Stable Free Lime < 1.5% | Avoided quality adjustments |
+| **App Realization Potential (20% capture)** | **3.68 t/h extra Clinker, 0.48 t/h Coal Saved** | **+1.66% Throughput, -2.34% Coal** |
 
 ---
 
