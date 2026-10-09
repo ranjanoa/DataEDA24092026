@@ -27,6 +27,11 @@
 - **Calciner Coal (`CALCINER COAL`)**: average = 11.49 t/h | High-Feed Stable Range = 8.88 - 16.04 t/h
 - **Alternative Fuel (`RDF SATELLITEBURNER`)**: average = 7.41 t/h | High-Feed Stable Range = 0.00 - 13.93 t/h
 - **Secondary Air Temp (`SECONDARY AIR TEMP`)**: average = 811.5 °C | High-Feed Stable Range = 698.95 - 921.88 °C
+- **Tertiary Air Temp (`TERTIARY AIR TEMP`)**: average = 606.79 °C | High-Feed Stable Range = 939.27 - 993.36 °C
+- **Sintering Zone Temp (`SINTERING ZONE TEMP`)**: average = 616.74 °C | High-Feed Stable Range = 1017.24 - 1079.05 °C
+- **Calciner Outlet Temp (`CALCINER OUTLET A TEMP`)**: average = 551.08 °C | High-Feed Stable Range = 882.01 - 890.09 °C
+- **Kiln Inlet Temp (`KILN INLET TEMP`)**: average = 1281.31 °C | High-Feed Stable Range = 803.82 - 1091.99 °C
+- **Cooler Exhaust Temp (`COOLER EXHAUST AIR TEMP`)**: average = 85.57 °C | High-Feed Stable Range = 131.41 - 142.84 °C
 - **Pre Heater Outlet O2 (`PRE HEATER OUTLET O2`)**: average = 4.37% | High-Feed Stable Range = 3.10 - 4.46%
 - **Pre Heater Outlet CO (`PRE HEATER OUTLET CO`)**: average = 0.043% | High-Feed Stable Range = 0.02 - 0.05%
 - **NOX Proxy (`NH3 CONSUMPTION`)**: average = 145.00 | High-Feed Stable Range = 1.0 - 168.9
@@ -145,6 +150,11 @@ State the complete operating window as a filled table grounded in proven high-ca
 | PRE_HEATER_OUTLET_O2 | 3.10 | 4.46 | 4.37 | near optimal |
 | PRE_HEATER_OUTLET_CO | 0.02 | 0.05 | 0.04 | near optimal |
 | SECONDARY_AIR_TEMP | 850.00 | 921.88 | 811.54 | +38.46 to +110.34°C |
+| TERTIARY_AIR_TEMP | 939.27 | 993.36 | 606.79 | +332.48 to +386.57°C |
+| SINTERING_ZONE_TEMP | 1017.24 | 1079.05 | 616.74 | +400.50 to +462.31°C |
+| CALCINER_OUTLET_A_TEMP | 882.01 | 890.09 | 551.08 | +330.93 to +339.01°C |
+| KILN_INLET_TEMP | 803.82 | 1091.99 | 1281.31 | -477.49 to -189.32°C |
+| COOLER_EXHAUST_AIR_TEMP | 131.41 | 142.84 | 85.57 | +45.84 to +57.27°C |
 | NH3_CONSUMPTION | 1.00 | 168.90 | 145.00 | near optimal |
 | KLINKER_SCAO | 0.98 | 1.50 | 2.03 | -0.53 to -1.05% |
 | KLINKER_C3S | 59.60 | 63.90 | 59.18 | +0.42 to +4.72% |
