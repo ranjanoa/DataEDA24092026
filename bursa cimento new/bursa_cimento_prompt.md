@@ -6,9 +6,9 @@
 # BURSA CIMENTO — PYRO PROCESS OPTIMIZATION & ENGINEERING DIAGNOSTICS REPORT
 *Prepared by: Process Engineering Dept, Bursa Cimento*
 
-[DERIVED: Clinker_Production_tph = KILN FEED * 0.65]
-[DERIVED: Total_Coal_Flow = MAIN BURNER COAL + CALCINER COAL]
-[DERIVED: Total_Fuel_Flow = Total_Coal_Flow + RDF SATELLITEBURNER]
+[DERIVED: Clinker_Production_tph = KILN_FEED * 0.65]
+[DERIVED: Total_Coal_Flow = MAIN_BURNER_COAL + CALCINER_COAL]
+[DERIVED: Total_Fuel_Flow = Total_Coal_Flow + RDF_SATELLITEBURNER]
 [DERIVED: Specific_Fuel_Consumption = Total_Fuel_Flow / Clinker_Production_tph]
 
 ## 📊 DATASET REFERENCE STATISTICS (BURSA CIMENTO OPERATIONAL DATA)
