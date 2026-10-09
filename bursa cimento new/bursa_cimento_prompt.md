@@ -37,6 +37,17 @@
 - **NOX Proxy (`NH3 CONSUMPTION`)**: average = 145.00 | High-Feed Stable Range = 1.0 - 168.9
 - **Clinker C3S (`KLINKER C3S`)**: average = 59.18% | High-Feed Stable Range = 59.60 - 63.90%
 - **Free Lime / SCAO (`KLINKER SCAO`)**: average = 2.03% | High-Feed Stable Range = 0.98 - 1.94%
+- **Pre Heater Fan Outlet Draft (`PRE HEATER FAN OUTLET`)**: High-Feed Stable Range = -4.95 to -3.32
+- **Calciner O2 A (`CALCINER O2 A`)**: High-Feed Stable Range = 2.66 - 4.50%
+- **Calciner Outlet A Pressure (`CALCINER OUTLET A PRESSURE`)**: High-Feed Stable Range = -15.19 to -12.69 mbar
+- **Kiln Inlet Pressure (`KILN INLET PRESSURE`)**: High-Feed Stable Range = -1.65 to -1.03 mbar
+- **Kiln Inlet O2 (`KILN INLET O2`)**: High-Feed Stable Range = 2.65 - 3.86%
+- **Pressure After Pre-Heater 1 (`PRESSURE AFTER PRE-HEATER 1`)**: High-Feed Stable Range = -37.83 to -33.89 mbar
+- **Pressure After Pre-Heater 2 (`PRESSURE AFTER PRE-HEATER 2`)**: High-Feed Stable Range = -37.88 to -33.80 mbar
+- **Cooler Fan Power (`COOLER FAN KW`)**: High-Feed Stable Range = 340.76 - 402.82 kW
+- **Cooler Fan Speed (`COOLER FAN SPEED`)**: High-Feed Stable Range = 67.11 - 75.26 rpm
+- **Cooler Chamber Pressure (`CHAMBER PRESSURE_COOLER FAN DRAFT`)**: High-Feed Stable Range = -0.74 to -0.60 mbar
+- **Grate Speed (`GRATE SPEED`)**: High-Feed Stable Range = 4.10 - 4.99 rpm
 
 ### Key System Correlation Coefficients:
 - `PRESSURE_AFTER_PRE-HEATER_1` vs `PRESSURE_AFTER_PRE-HEATER_2`: **+0.998**
