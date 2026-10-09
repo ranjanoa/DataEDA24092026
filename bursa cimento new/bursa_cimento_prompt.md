@@ -15,17 +15,17 @@
 
 - **Total Kiln Feed (`KILN FEED`)**: average = 340.9 t/h | peak = 406.3 t/h | Stable Range = 0 - 350.1 t/h
 - **Clinker Production (`Clinker_Production_tph`)**: average = 221.6 t/h (Derived at 0.65 ratio)
-- **Kiln Speed (`KILN SPEED`)**: average = 3.11 rpm | peak = 3.95 rpm | Optimal Range = 1.10 - 4.40 rpm
-- **Kiln Main Drive Current (`KILN MAIN DRIVE (M02) CURRENT`)**: average = 179.22 A | peak = 431.73 A | Optimal Range = 130.97 - 437.42 A
-- **Main Burner Coal (`MAIN BURNER COAL`)**: average = 8.90 t/h | Optimal Range = 3.70 - 12.71 t/h
-- **Calciner Coal (`CALCINER COAL`)**: average = 11.49 t/h | Optimal Range = 0.64 - 13.64 t/h
-- **Alternative Fuel (`RDF SATELLITEBURNER`)**: average = 7.41 t/h | peak = 47.63 t/h
-- **Secondary Air Temp (`SECONDARY AIR TEMP`)**: average = 811.5 °C | Stable Range = 785 - 1800 °C
-- **Pre Heater Outlet O2 (`PRE HEATER OUTLET O2`)**: average = 4.37% | Stable Range = 3.47 - 20.83%
-- **Pre Heater Outlet CO (`PRE HEATER OUTLET CO`)**: average = 0.043% | Optimal Range = 0.02 - 0.05%
-- **NOX Proxy (`NH3 CONSUMPTION`)**: average = 145.00 | Stable Range = 1.0 - 100.2
-- **Clinker C3S (`KLINKER C3S`)**: average = 59.18% | Optimal Range = 57.05 - 62.95%
-- **Free Lime / SCAO (`KLINKER SCAO`)**: average = 2.03% | Optimal Range = 1.17 - 2.45%
+- **Kiln Speed (`KILN SPEED`)**: average = 3.11 rpm | High-Feed Stable Range (at >340 t/h) = 3.22 - 3.50 rpm
+- **Kiln Main Drive Current (`KILN MAIN DRIVE (M02) CURRENT`)**: average = 179.22 A | High-Feed Stable Range = 295.47 - 318.40 A
+- **Main Burner Coal (`MAIN BURNER COAL`)**: average = 8.90 t/h | High-Feed Stable Range = 8.81 - 9.71 t/h
+- **Calciner Coal (`CALCINER COAL`)**: average = 11.49 t/h | High-Feed Stable Range = 8.88 - 16.04 t/h
+- **Alternative Fuel (`RDF SATELLITEBURNER`)**: average = 7.41 t/h | High-Feed Stable Range = 0.00 - 13.93 t/h
+- **Secondary Air Temp (`SECONDARY AIR TEMP`)**: average = 811.5 °C | High-Feed Stable Range = 698.95 - 921.88 °C
+- **Pre Heater Outlet O2 (`PRE HEATER OUTLET O2`)**: average = 4.37% | High-Feed Stable Range = 3.10 - 4.46%
+- **Pre Heater Outlet CO (`PRE HEATER OUTLET CO`)**: average = 0.043% | High-Feed Stable Range = 0.02 - 0.05%
+- **NOX Proxy (`NH3 CONSUMPTION`)**: average = 145.00 | High-Feed Stable Range = 1.0 - 168.9
+- **Clinker C3S (`KLINKER C3S`)**: average = 59.18% | High-Feed Stable Range = 59.60 - 63.90%
+- **Free Lime / SCAO (`KLINKER SCAO`)**: average = 2.03% | High-Feed Stable Range = 0.98 - 1.94%
 
 ### Key System Correlation Coefficients:
 - `PRESSURE_AFTER_PRE-HEATER_1` vs `PRESSURE_AFTER_PRE-HEATER_2`: **+0.998**
