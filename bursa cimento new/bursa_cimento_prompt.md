@@ -137,11 +137,15 @@ State the complete operating window as a filled table grounded in proven high-ca
 |---|---|---|---|---|
 | Clinker_Production_tph | 240.00 | 260.00 | 221.58 | +18.42 to +38.42 t/h |
 | KILN_FEED | 369.00 | 400.00 | 340.90 | +28.10 to +59.10 t/h |
+| KILN_SPEED | 3.22 | 3.50 | 3.11 | +0.11 to +0.39 rpm |
+| KILN_MAIN_DRIVE_(M02)_CURRENT | 295.47 | 318.40 | 179.22 | +116.25 to +139.18 A |
 | MAIN_BURNER_COAL | 8.81 | 9.71 | 8.90 | near optimal |
 | CALCINER_COAL | 8.88 | 16.04 | 11.49 | near optimal |
 | RDF_SATELLITEBURNER| 10.00 | 13.93 | 7.41 | +2.59 to +6.52 t/h |
 | PRE_HEATER_OUTLET_O2 | 3.10 | 4.46 | 4.37 | near optimal |
+| PRE_HEATER_OUTLET_CO | 0.02 | 0.05 | 0.04 | near optimal |
 | SECONDARY_AIR_TEMP | 850.00 | 921.88 | 811.54 | +38.46 to +110.34°C |
+| NH3_CONSUMPTION | 1.00 | 168.90 | 145.00 | near optimal |
 | KLINKER_SCAO | 0.98 | 1.50 | 2.03 | -0.53 to -1.05% |
 | KLINKER_C3S | 59.60 | 63.90 | 59.18 | +0.42 to +4.72% |
 
