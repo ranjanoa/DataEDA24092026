@@ -126,32 +126,32 @@ The 3D envelopes map the "Bursa Golden Zone" — the exact combination of Fuel S
 ---
 
 ### STEP 9 — Golden Batch Complete Definition
-State the complete operating window as a filled table:
+State the complete operating window as a filled table grounded in proven high-capacity operation (>340 t/h feed):
 | Variable | Golden Batch Lower | Golden Batch Upper | Current Mean | Gap |
 |---|---|---|---|---|
 | Clinker_Production_tph | 240.00 | 260.00 | 221.58 | +18.42 to +38.42 t/h |
 | KILN_FEED | 369.00 | 400.00 | 340.90 | +28.10 to +59.10 t/h |
-| MAIN_BURNER_COAL | 8.00 | 9.00 | 8.90 | near optimal |
-| CALCINER_COAL | 10.00 | 13.00 | 11.49 | near optimal |
-| RDF_SATELLITEBURNER| 13.00 | 20.00 | 7.41 | +5.59 to +12.59 t/h |
-| PRE_HEATER_OUTLET_O2 | 3.50 | 4.50 | 4.37 | near optimal |
-| SECONDARY_AIR_TEMP | 950.00 | 1100.00 | 811.54 | +138.46 to +288.46°C |
-| KLINKER_SCAO | 1.17 | 1.50 | 2.03 | -0.53 to -0.86% |
-| KLINKER_C3S | 60.00 | 63.00 | 59.18 | +0.82 to +3.82% |
+| MAIN_BURNER_COAL | 8.81 | 9.71 | 8.90 | near optimal |
+| CALCINER_COAL | 8.88 | 16.04 | 11.49 | near optimal |
+| RDF_SATELLITEBURNER| 10.00 | 13.93 | 7.41 | +2.59 to +6.52 t/h |
+| PRE_HEATER_OUTLET_O2 | 3.10 | 4.46 | 4.37 | near optimal |
+| SECONDARY_AIR_TEMP | 850.00 | 921.88 | 811.54 | +38.46 to +110.34°C |
+| KLINKER_SCAO | 0.98 | 1.50 | 2.03 | -0.53 to -1.05% |
+| KLINKER_C3S | 59.60 | 63.90 | 59.18 | +0.42 to +4.72% |
 
 ### STEP 10 — VALUE LOST QUANTIFICATION
 Recalculate all numbers dynamically using the statistics above to highlight the percentage efficiency gains:
 - **Production Opportunity**: Gap = (240.00 − 221.58) = 18.42 t/h increase. This represents an **~8.31% increase** in total clinker production throughput.
-- **Alternative Fuel Savings**: Current average total coal is 20.39 t/h. The Golden Batch targets 18.0 t/h by substituting with RDF. Gap = (20.39 - 18.00) = 2.39 t/h of coal saved. This represents an **~11.72% reduction** in total coal consumption.
+- **Alternative Fuel Savings**: Current average total coal is 20.39 t/h. The Golden Batch targets 17.69 t/h (8.81 + 8.88) by substituting with RDF. Gap = (20.39 - 17.69) = 2.70 t/h of coal saved. This represents an **~13.24% reduction** in total coal consumption.
 - **Quality Cost Reduction**: Value of stabilizing `KLINKER_SCAO` below 1.5%, avoiding corrective grinding.
 
 Present this completed summary table:
 | Opportunity | Physical Quantity | Percentage Gain |
 |---|---|---|
 | Production Increase | 18.42 t/h extra Clinker | **+8.31%** Throughput |
-| Coal Reduction (via RDF) | 2.39 t/h of Coal Saved | **-11.72%** Coal Usage |
+| Coal Reduction (via RDF) | 2.70 t/h of Coal Saved | **-13.24%** Coal Usage |
 | Quality & C3S improvement | Stable Free Lime < 1.5% | Avoided quality adjustments |
-| **App Realization Potential (20% capture)** | **3.68 t/h extra Clinker, 0.48 t/h Coal Saved** | **+1.66% Throughput, -2.34% Coal** |
+| **App Realization Potential (20% capture)** | **3.68 t/h extra Clinker, 0.54 t/h Coal Saved** | **+1.66% Throughput, -2.65% Coal** |
 
 ---
 
