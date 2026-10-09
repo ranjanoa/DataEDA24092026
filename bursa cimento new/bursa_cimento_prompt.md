@@ -137,11 +137,33 @@ The 3D envelopes map the "Bursa Golden Zone" — the exact combination of Fuel S
 
 ---
 
-### STEP 9 — VALUE REALISATION: SFC REDUCTION & QUALITY STABILIZATION
+### STEP 9 — Golden Batch Complete Definition
+State the complete operating window as a filled table:
+| Variable | Golden Batch Lower | Golden Batch Upper | Current Mean | Gap |
+|---|---|---|---|---|
+| Clinker_Production_tph | 240.00 | 260.00 | 221.58 | +18.42 to +38.42 t/h |
+| KILN_FEED | 369.00 | 400.00 | 340.90 | +28.10 to +59.10 t/h |
+| MAIN_BURNER_COAL | 8.00 | 9.00 | 8.90 | near optimal |
+| CALCINER_COAL | 10.00 | 13.00 | 11.49 | near optimal |
+| RDF_SATELLITEBURNER| 13.00 | 20.00 | 7.41 | +5.59 to +12.59 t/h |
+| PRE_HEATER_OUTLET_O2 | 3.50 | 4.50 | 4.37 | near optimal |
+| SECONDARY_AIR_TEMP | 950.00 | 1100.00 | 811.54 | +138.46 to +288.46°C |
+| KLINKER_SCAO | 1.17 | 1.50 | 2.03 | -0.53 to -0.86% |
+| KLINKER_C3S | 60.00 | 63.00 | 59.18 | +0.82 to +3.82% |
 
-1. **Quality Cost Reduction**: By stabilizing `KLINKER SCAO` below 1.5% through better `SECONDARY AIR TEMP` recuperation, Bursa minimizes the need for corrective grinding or blending downstream, preserving the final cement strength parameters (C3S).
-2. **Specific Fuel Consumption (SFC) Reduction**: Maximizing recuperation and optimizing the RDF vs Coal split achieves a structural reduction in SFC.
-3. **Compound ROI**: The synergy of pushing throughput while simultaneously dragging down SFC and controlling Free Lime represents the ultimate "Golden Batch" goal.
+### STEP 10 — VALUE LOST QUANTIFICATION
+Recalculate all numbers dynamically using the statistics above:
+- **Production Opportunity**: Gap = (240.00 − 221.58) × 8,120 hours/year = 149,606 t/yr. Calculate financial value at **$50/ton** of clinker ($7,480,300/yr).
+- **Alternative Fuel Savings**: Calculate savings of substituting coal with higher RDF usage.
+- **Quality Cost Reduction**: Value of stabilizing `KLINKER_SCAO` below 1.5%, avoiding corrective grinding.
+
+Present this completed summary table:
+| Opportunity | Annual Quantity | Financial Value |
+|---|---|---|
+| Production (conservative) | 149,606 t/yr | ~$7.48M at $50/t |
+| Fuel & RDF saving | [Calculated t/yr] | [Calculated $ value] |
+| Quality & C3S improvement | Better mineralogy | Avoided quality adjustments |
+| **TOTAL (conservative)** | | **[Sum of Financial Value]** |
 
 ---
 
