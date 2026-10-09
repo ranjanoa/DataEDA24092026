@@ -186,6 +186,20 @@ Present this completed summary table:
 
 ---
 
+## PART 3 — TIME-SERIES TRANSIENT STABILITY
+
+### STEP 11 — Production vs Fuel Efficiency Time Trend
+**Graph 10 — Kiln Feed & Clinker vs SFC**
+[DUALPLOT: KILN_FEED, Clinker_Production_tph | Specific_Fuel_Consumption]
+*Engineering Insight (Transient Instability)*: Analyze the macro time-series view. Look for periods where high Kiln Feed correctly drops the SFC versus periods where SFC spikes erratically despite steady feed, indicating severe burner/cooler instability or raw mix burnability issues.
+
+### STEP 12 — Thermal Recuperation vs Clinker Quality
+**Graph 11 — Secondary Air Temp vs Free Lime (SCAO)**
+[DUALPLOT: SECONDARY_AIR_TEMP | KLINKER_SCAO]
+*Engineering Insight (Thermal Decoupling)*: This timeline reveals thermal decoupling. When Secondary Air Temp plunges, does the Free Lime spike immediately, or is there a delay? Prolonged periods of low temp and high SCAO confirm thermal starvation in the burning zone.
+
+---
+
 ## ⚡ BONUS — PARALLEL PLOTS FOR EXPORT
 
 1. **Bursa Quality & Burnability Diagnostics**:
