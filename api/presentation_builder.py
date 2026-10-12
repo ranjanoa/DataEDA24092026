@@ -269,20 +269,19 @@ def add_formatted_slide(prs, title: str, bullets: list, img_stream: io.BytesIO =
 def parse_markdown_ai_content(summary_text: str) -> dict:
     """
     Parses generic AI markdown output into structured blocks:
-    - graphs: dict mapping graph identifiers to title & bullets
+    - chart_units: list of atomic chart units containing title, tag, tag_type, variables, and bullets
+    - graphs: dict mapping graph identifiers to title & bullets (for backward compatibility)
     - tables: list of (title, headers, rows)
     - executive_bullets: list of summary bullet points
     - correlation_bullets: list of correlation highlights
     """
     graphs = {}
+    chart_units = []
     tables = []
     executive_bullets = []
     correlation_bullets = []
     
-    current_graph_key = None
-    current_graph_title = None
-    current_graph_bullets = []
-    
+    current_unit = None
     lines = summary_text.split('\n')
     i = 0
     while i < len(lines):
@@ -297,12 +296,17 @@ def parse_markdown_ai_content(summary_text: str) -> dict:
         if not graph_m:
             graph_m = re.search(r'^#{2,4}\s*(?:Graph\s*(\d+)|STEP\s*([0-9A-Za-z]+)|(3D\s+[^:]+)|(Parallel\s+[^:]+))\s*[:—–-]?\s*(.*)$', line, re.IGNORECASE)
 
+        tag_m = re.search(r'\[(SCATTER|SCATTER3D|DUALPLOT|PARALLEL|HISTOGRAM):([^\]]+)\]', line, re.IGNORECASE)
+
         if graph_m:
-            if current_graph_key:
-                graphs[current_graph_key] = {
-                    "title": current_graph_title or current_graph_key,
-                    "bullets": current_graph_bullets
-                }
+            if current_unit and (current_unit.get("tag") or current_unit.get("bullets")):
+                chart_units.append(current_unit)
+                if current_unit.get("key"):
+                    graphs[current_unit["key"]] = {
+                        "title": current_unit["title"],
+                        "bullets": current_unit["bullets"]
+                    }
+            
             g_num = graph_m.group(1)
             g_step = graph_m.group(2)
             g_3d = graph_m.group(3)
@@ -310,39 +314,68 @@ def parse_markdown_ai_content(summary_text: str) -> dict:
             g_named = graph_m.group(5) if len(graph_m.groups()) >= 5 else None
             g_sub = graph_m.group(6) if len(graph_m.groups()) >= 6 else (graph_m.group(5) or "")
             
+            unit_key = None
             if g_num:
-                current_graph_key = f"graph_{g_num}"
-                current_graph_title = f"Graph {g_num}: {g_sub.strip()}" if g_sub and g_sub.strip() else f"Graph {g_num}"
+                unit_key = f"graph_{g_num}"
+                unit_title = f"Graph {g_num}: {g_sub.strip()}" if g_sub and g_sub.strip() else f"Graph {g_num}"
             elif g_step:
-                current_graph_key = f"step_{g_step.lower()}"
-                current_graph_title = f"STEP {g_step}: {g_sub.strip()}" if g_sub and g_sub.strip() else f"STEP {g_step}"
+                unit_key = f"step_{g_step.lower()}"
+                unit_title = f"STEP {g_step}: {g_sub.strip()}" if g_sub and g_sub.strip() else f"STEP {g_step}"
             elif g_3d:
-                current_graph_key = f"3d_{len(graphs)+1}"
-                current_graph_title = f"{g_3d.strip()}: {g_sub.strip()}" if g_sub and g_sub.strip() else g_3d.strip()
+                unit_key = f"3d_{len(chart_units)+1}"
+                unit_title = f"{g_3d.strip()}: {g_sub.strip()}" if g_sub and g_sub.strip() else g_3d.strip()
             elif g_par or g_named:
                 name = g_par or g_named
-                current_graph_key = f"parallel_{len(graphs)+1}"
-                current_graph_title = f"{name.strip()}: {g_sub.strip()}" if g_sub and g_sub.strip() else name.strip()
-            current_graph_bullets = []
+                unit_key = f"parallel_{len(chart_units)+1}"
+                unit_title = f"{name.strip()}: {g_sub.strip()}" if g_sub and g_sub.strip() else name.strip()
+            else:
+                unit_title = line.replace('**', '').replace('##', '').strip()
+
+            current_unit = {
+                "key": unit_key,
+                "graph_num": g_num,
+                "title": unit_title,
+                "tag": None,
+                "tag_type": None,
+                "variables": [],
+                "bullets": []
+            }
             i += 1
             continue
-            
-        # Generic Engineering Insights / Bullet
-        if current_graph_key:
+
+        if tag_m:
+            if current_unit is None or current_unit.get("tag"):
+                current_unit = {
+                    "key": f"tag_{len(chart_units)+1}",
+                    "graph_num": None,
+                    "title": "Process Visualization",
+                    "tag": None,
+                    "tag_type": None,
+                    "variables": [],
+                    "bullets": []
+                }
+            current_unit["tag"] = tag_m.group(0).strip()
+            current_unit["tag_type"] = tag_m.group(1).lower()
+            vars_raw = re.findall(r'[a-zA-Z0-9_\(\)]+', tag_m.group(2))
+            current_unit["variables"] = [v.lower() for v in vars_raw if v.upper() not in ['X', 'Y', 'Z', 'COLOR', 'SCALE', 'JET', 'VIRIDIS', 'HOT', 'RDBU']]
+            i += 1
+            continue
+
+        if current_unit and current_unit.get("tag"):
             if line.startswith('*') or line.startswith('-') or line.startswith('•') or line.lower().startswith('engineering insight'):
                 clean_b = line.replace('**', '').replace('*', '').strip()
-                if clean_b:
-                    current_graph_bullets.append(clean_b)
+                if clean_b and not clean_b.startswith('---'):
+                    current_unit["bullets"].append(clean_b)
             elif line.startswith('#'):
-                graphs[current_graph_key] = {
-                    "title": current_graph_title or current_graph_key,
-                    "bullets": current_graph_bullets
-                }
-                current_graph_key = None
-                current_graph_bullets = []
-            elif current_graph_bullets and line and not line.startswith('[') and not line.startswith('|'):
-                # Multi-line bullet continuation
-                current_graph_bullets[-1] += " " + line.replace('**', '').replace('*', '').strip()
+                chart_units.append(current_unit)
+                if current_unit.get("key"):
+                    graphs[current_unit["key"]] = {
+                        "title": current_unit["title"],
+                        "bullets": current_unit["bullets"]
+                    }
+                current_unit = None
+            elif current_unit["bullets"] and line and not line.startswith('[') and not line.startswith('|') and not line.startswith('---'):
+                current_unit["bullets"][-1] += " " + line.replace('**', '').replace('*', '').strip()
 
         # Generic Table Matcher
         if line.startswith('|') and '|' in line[1:]:
@@ -360,23 +393,27 @@ def parse_markdown_ai_content(summary_text: str) -> dict:
                 tables.append({"headers": headers, "rows": data_rows})
             continue
 
-        # Correlation bullets (generic correlation pattern)
+        # Correlation bullets
         if "vs" in line and ("+" in line or "-" in line):
             correlation_bullets.append(line.replace('**', '').replace('*', '').strip())
 
-        # Executive summary numbered bullets
+        # Executive summary bullets
         if re.match(r'^\d+\.\s+\*\*', line):
             executive_bullets.append(line.replace('**', '').replace('*', '').strip())
 
         i += 1
 
-    if current_graph_key:
-        graphs[current_graph_key] = {
-            "title": current_graph_title or current_graph_key,
-            "bullets": current_graph_bullets
-        }
+    if current_unit and (current_unit.get("tag") or current_unit.get("bullets")):
+        chart_units.append(current_unit)
+        if current_unit.get("key"):
+            graphs[current_unit["key"]] = {
+                "title": current_unit["title"],
+                "bullets": current_unit["bullets"]
+            }
 
+    valid_units = [u for u in chart_units if u.get("variables")]
     return {
+        "chart_units": valid_units,
         "graphs": graphs,
         "tables": tables,
         "executive_bullets": executive_bullets,
@@ -386,74 +423,86 @@ def parse_markdown_ai_content(summary_text: str) -> dict:
 
 def find_matching_chart_generically(slide_title: str, slide_num: int, ai_charts: list, used_indices: set):
     """
-    100% GENERIC chart matching:
-    1. Graph Number match (e.g. 'Graph 1' in slide title matches 'Graph 1' in chart title).
-    2. Step Key match (e.g. 'STEP 5A', 'STEP 8A').
-    3. Tag Index match.
-    4. Token overlap between slide title words and chart title/tag words.
-    5. Fallback: First unused chart.
+    Locked generic chart-to-slide matcher:
+    1. Exact Graph Number match for single scatter graphs (Graphs 1 to 9).
+    2. Parallel Coordinate matching with variable/token overlap (Slides 14, 22, 30, 31, 32, 33).
+    3. 3D Space matching (Slides 24, 25).
+    4. Time trend / Process stability (Slide 13).
+    5. Token overlap fallback.
+    6. First unused chart.
     """
     if not ai_charts:
         return None
 
-    norm_slide_title = (slide_title or "").lower()
+    norm_s_title = (slide_title or "").lower()
+    slide_words = set(re.findall(r'[a-zA-Z0-9_]{3,}', norm_s_title)) - {
+        'graph', 'step', 'versus', 'analysis', 'dynamics', 'plot', 'bursa',
+        'trajectories', 'multi', 'variable', 'space'
+    }
 
-    # 1. Exact Graph Number match (e.g. 'Graph 1', 'Graph 2')
-    num_match = re.search(r'graph\s*(\d+)', norm_slide_title)
-    if num_match:
-        target_num = num_match.group(1)
+    # 1. Exact Graph Number match for 1..9 (Slides 9..12, 17..21)
+    g_m = re.search(r'graph\s*([1-9])(?!\d)', norm_s_title)
+    if g_m:
+        target_g = g_m.group(1)
         for idx, chart in enumerate(ai_charts):
-            if idx in used_indices:
-                continue
-            c_title = (chart.get("title") or "").lower()
-            c_tag = (chart.get("tag") or "").lower()
-            c_match = re.search(r'graph\s*(\d+)', c_title)
-            if c_match and c_match.group(1) == target_num:
+            if chart.get('graph_num') == target_g:
                 used_indices.add(idx)
                 return chart
 
-    # 2. Step Key match (e.g. 'STEP 5A', 'STEP 8A')
-    step_match = re.search(r'step\s*([0-9a-z]+)', norm_slide_title)
-    if step_match:
-        target_step = step_match.group(1)
+    # 2. Parallel Coordinate matching (Slides 14, 22, 30, 31, 32, 33)
+    if 'parallel' in norm_s_title or 'step 5b' in norm_s_title or ('graph 10' in norm_s_title and 'dynamics' in norm_s_title):
+        best_p_overlap = 0
+        best_p_idx = None
         for idx, chart in enumerate(ai_charts):
-            if idx in used_indices:
-                continue
-            c_title = (chart.get("title") or "").lower()
-            if f"step {target_step}" in c_title or f"step_{target_step}" in c_title:
-                used_indices.add(idx)
-                return chart
+            if chart.get('tag_type') == 'parallel' or 'parallel' in (chart.get('tag') or '').lower():
+                c_vars = chart.get('variables', []) + re.findall(r'[a-zA-Z0-9_]{3,}', (chart.get('title') or '').lower())
+                overlap = len(slide_words.intersection(set(c_vars)))
+                if overlap > best_p_overlap:
+                    best_p_overlap = overlap
+                    best_p_idx = idx
+        if best_p_idx is not None and best_p_overlap >= 1:
+            used_indices.add(best_p_idx)
+            return ai_charts[best_p_idx]
 
-    # 3. Parallel Coordinate match
-    if "parallel" in norm_slide_title:
+    # 3. 3D Space matching (Slides 24, 25)
+    if '3d' in norm_s_title or 'step 8' in norm_s_title:
+        best_3d_overlap = 0
+        best_3d_idx = None
         for idx, chart in enumerate(ai_charts):
-            if idx in used_indices:
-                continue
-            c_tag = (chart.get("tag") or "").lower()
-            c_title = (chart.get("title") or "").lower()
-            if "parallel" in c_title or "parallel" in c_tag:
-                used_indices.add(idx)
-                return chart
+            if chart.get('tag_type') == 'scatter3d' or 'scatter3d' in (chart.get('tag') or '').lower():
+                c_vars = chart.get('variables', []) + re.findall(r'[a-zA-Z0-9_]{3,}', (chart.get('title') or '').lower())
+                overlap = len(slide_words.intersection(set(c_vars)))
+                if overlap > best_3d_overlap:
+                    best_3d_overlap = overlap
+                    best_3d_idx = idx
+        if best_3d_idx is not None and best_3d_overlap >= 1:
+            used_indices.add(best_3d_idx)
+            return ai_charts[best_3d_idx]
 
-    # 4. Token Overlap matching
-    slide_tokens = set(re.findall(r'[a-zA-Z0-9_]{3,}', norm_slide_title)) - {'graph', 'step', 'versus', 'analysis', 'dynamics', 'plot'}
-    if slide_tokens:
-        best_idx = None
-        best_overlap = 0
+    # 4. Time trend / Process stability (Slide 13)
+    if 'step 5a' in norm_s_title or 'time trend' in norm_s_title or 'stability' in norm_s_title:
         for idx, chart in enumerate(ai_charts):
-            if idx in used_indices:
-                continue
-            c_str = f"{(chart.get('title') or '')} {(chart.get('tag') or '')}".lower()
-            c_tokens = set(re.findall(r'[a-zA-Z0-9_]{3,}', c_str))
-            overlap = len(slide_tokens.intersection(c_tokens))
-            if overlap > best_overlap:
-                best_overlap = overlap
-                best_idx = idx
-        if best_idx is not None and best_overlap >= 1:
-            used_indices.add(best_idx)
-            return ai_charts[best_idx]
+            if chart.get('tag_type') == 'dualplot' or 'dualplot' in (chart.get('tag') or '').lower():
+                if any('feed' in v or 'sfc' in v or 'clinker' in v for v in chart.get('variables', [])):
+                    used_indices.add(idx)
+                    return chart
 
-    # 5. Sequential fallback: first unused chart
+    # 5. Token overlap fallback across unused charts
+    best_overlap = 0
+    best_idx = None
+    for idx, chart in enumerate(ai_charts):
+        if idx in used_indices:
+            continue
+        c_vars = chart.get('variables', []) + re.findall(r'[a-zA-Z0-9_]{3,}', (chart.get('title') or '').lower())
+        overlap = len(slide_words.intersection(set(c_vars)))
+        if overlap > best_overlap:
+            best_overlap = overlap
+            best_idx = idx
+    if best_idx is not None and best_overlap >= 1:
+        used_indices.add(best_idx)
+        return ai_charts[best_idx]
+
+    # 6. Sequential fallback
     for idx, chart in enumerate(ai_charts):
         if idx not in used_indices:
             used_indices.add(idx)
@@ -483,6 +532,44 @@ def generate_formatted_report_presentation(data: dict, template_path: str = None
 
     parsed_content = parse_markdown_ai_content(ai_summary)
     used_chart_indices = set()
+
+    # Step 1: Bind atomic chart units to ai_charts (Locking Image + Bullets together)
+    chart_units = parsed_content.get("chart_units", [])
+    for chart in ai_charts:
+        c_raw_tag = (chart.get("tag") or "").strip().lower()
+        c_tag_norm = re.sub(r'\s+', '', c_raw_tag)
+        matched_unit = None
+        
+        # 1. Exact or normalized tag match
+        for cu in chart_units:
+            cu_tag_norm = re.sub(r'\s+', '', (cu.get("tag") or "").lower())
+            if c_tag_norm and cu_tag_norm and (c_tag_norm == cu_tag_norm or c_tag_norm in cu_tag_norm or cu_tag_norm in c_tag_norm):
+                matched_unit = cu
+                break
+        
+        # 2. Variable set match if not matched
+        if not matched_unit and c_raw_tag:
+            c_tag_vars = set(re.findall(r'[a-zA-Z0-9_\(\)]+', c_raw_tag)) - {
+                'scatter', 'scatter3d', 'dualplot', 'parallel', 'histogram',
+                'x', 'y', 'z', 'color', 'scale', 'jet', 'viridis', 'hot', 'rdbu'
+            }
+            for cu in chart_units:
+                if set(cu.get("variables", [])) == c_tag_vars:
+                    matched_unit = cu
+                    break
+        
+        # 3. Fallback: Tag index match
+        if not matched_unit and chart.get("tag_index") is not None:
+            t_idx = chart.get("tag_index")
+            if 0 <= t_idx < len(chart_units):
+                matched_unit = chart_units[t_idx]
+
+        if matched_unit:
+            chart["bullets"] = matched_unit.get("bullets", [])
+            chart["clean_title"] = matched_unit.get("title") or chart.get("title")
+            chart["graph_num"] = matched_unit.get("graph_num")
+            chart["tag_type"] = matched_unit.get("tag_type")
+            chart["variables"] = matched_unit.get("variables", [])
 
     # If the presentation has template slides (e.g. 10+ slides)
     if len(prs.slides) >= 10:
@@ -523,40 +610,11 @@ def generate_formatted_report_presentation(data: dict, template_path: str = None
                 if chart and chart.get("image_base64"):
                     try:
                         img_stream = decode_base64_image(chart["image_base64"])
-                        
-                        # Match bullets from parsed AI content
-                        chart_bullets = []
-                        c_title_clean = clean_title(chart.get("title") or slide_title)
-                        chart_tag = chart.get("tag", "").lower()
-
-                        # 1. Match by exact Graph Number (e.g. Graph 1 -> graph_1)
-                        s_g_num = re.search(r'graph\s*(\d+)', f"{slide_title} {c_title_clean}", re.IGNORECASE)
-                        if s_g_num:
-                            target_key = f"graph_{s_g_num.group(1)}"
-                            if target_key in parsed_content["graphs"]:
-                                chart_bullets = parsed_content["graphs"][target_key]["bullets"]
-
-                        # 2. Match by Step Key (e.g. step_8a, step_11)
-                        if not chart_bullets:
-                            s_step = re.search(r'step\s*([0-9a-z]+)', f"{slide_title} {c_title_clean}", re.IGNORECASE)
-                            if s_step:
-                                target_step = f"step_{s_step.group(1).lower()}"
-                                if target_step in parsed_content["graphs"]:
-                                    chart_bullets = parsed_content["graphs"][target_step]["bullets"]
-
-                        # 3. Match by Token Overlap
-                        if not chart_bullets:
-                            slide_words = set(re.findall(r'[a-zA-Z0-9_]{3,}', f"{slide_title} {c_title_clean} {chart_tag}".lower())) - {'graph', 'step', 'versus', 'analysis', 'dynamics', 'plot', 'bursa', 'trajectories'}
-                            best_b_overlap = 0
-                            for gk, gv in parsed_content["graphs"].items():
-                                g_words = set(re.findall(r'[a-zA-Z0-9_]{3,}', f"{gk} {gv['title']}".lower()))
-                                overlap = len(slide_words.intersection(g_words))
-                                if overlap > best_b_overlap:
-                                    best_b_overlap = overlap
-                                    chart_bullets = gv["bullets"]
+                        c_title_clean = clean_title(chart.get("clean_title") or chart.get("title") or slide_title)
+                        chart_bullets = chart.get("bullets", [])
 
                         update_graph_slide_content(slide, c_title_clean, chart_bullets, img_stream)
-                        logger.info(f"Updated Slide {s_num} with chart '{c_title_clean}'")
+                        logger.info(f"Updated Slide {s_num} with chart '{c_title_clean}' and {len(chart_bullets)} locked bullets")
                     except Exception as e:
                         logger.error(f"Failed to update chart on slide {s_num}: {e}")
 
@@ -576,8 +634,8 @@ def generate_formatted_report_presentation(data: dict, template_path: str = None
             if idx not in used_chart_indices and chart.get("image_base64"):
                 try:
                     img_stream = decode_base64_image(chart["image_base64"])
-                    c_title = clean_title(chart.get("title") or f"Process Visualization {idx+1}")
-                    add_formatted_slide(prs, c_title, [], img_stream)
+                    c_title = clean_title(chart.get("clean_title") or chart.get("title") or f"Process Visualization {idx+1}")
+                    add_formatted_slide(prs, c_title, chart.get("bullets", []), img_stream)
                     logger.info(f"Added extra slide for chart '{c_title}'")
                 except Exception as e:
                     logger.error(f"Failed to add extra chart slide: {e}")
