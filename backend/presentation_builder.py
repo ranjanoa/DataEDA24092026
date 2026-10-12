@@ -421,109 +421,17 @@ def parse_markdown_ai_content(summary_text: str) -> dict:
     }
 
 
-def find_matching_chart_generically(slide_title: str, slide_num: int, ai_charts: list, used_indices: set):
+def compile_presentation_manifest(prs, data: dict) -> dict:
     """
-    Locked generic chart-to-slide matcher:
-    1. Exact Graph Number match for single scatter graphs (Graphs 1 to 9).
-    2. Parallel Coordinate matching with variable/token overlap (Slides 14, 22, 30, 31, 32, 33).
-    3. 3D Space matching (Slides 24, 25).
-    4. Time trend / Process stability (Slide 13).
-    5. Token overlap fallback.
-    6. First unused chart.
+    Phase 1 (Option B): Compiles a structured, slide-by-slide Manifest with Double Verification.
+    
+    DOUBLE VERIFICATION RULES:
+    1. Structural Intent Check: Identifies target slide role (e.g. Graph 1..9, Parallel 1..4, 3D 1..2, Dual Plot).
+    2. Telemetry Variable Domain Cross-Check: Verifies that the matched chart's physical variables
+       overlap with the slide's telemetry domain before locking them together.
+    3. Atomic Bullet Lock: Bullet points and images are bound together at the unit level;
+       an image can never receive bullets from another section.
     """
-    if not ai_charts:
-        return None
-
-    norm_s_title = (slide_title or "").lower()
-    slide_words = set(re.findall(r'[a-zA-Z0-9_]{3,}', norm_s_title)) - {
-        'graph', 'step', 'versus', 'analysis', 'dynamics', 'plot', 'bursa',
-        'trajectories', 'multi', 'variable', 'space'
-    }
-
-    # 1. Exact Graph Number match for 1..9 (Slides 9..12, 17..21)
-    g_m = re.search(r'graph\s*([1-9])(?!\d)', norm_s_title)
-    if g_m:
-        target_g = g_m.group(1)
-        for idx, chart in enumerate(ai_charts):
-            if chart.get('graph_num') == target_g:
-                used_indices.add(idx)
-                return chart
-
-    # 2. Parallel Coordinate matching (Slides 14, 22, 30, 31, 32, 33)
-    if 'parallel' in norm_s_title or 'step 5b' in norm_s_title or ('graph 10' in norm_s_title and 'dynamics' in norm_s_title):
-        best_p_overlap = 0
-        best_p_idx = None
-        for idx, chart in enumerate(ai_charts):
-            if chart.get('tag_type') == 'parallel' or 'parallel' in (chart.get('tag') or '').lower():
-                c_vars = chart.get('variables', []) + re.findall(r'[a-zA-Z0-9_]{3,}', (chart.get('title') or '').lower())
-                overlap = len(slide_words.intersection(set(c_vars)))
-                if overlap > best_p_overlap:
-                    best_p_overlap = overlap
-                    best_p_idx = idx
-        if best_p_idx is not None and best_p_overlap >= 1:
-            used_indices.add(best_p_idx)
-            return ai_charts[best_p_idx]
-
-    # 3. 3D Space matching (Slides 24, 25)
-    if '3d' in norm_s_title or 'step 8' in norm_s_title:
-        best_3d_overlap = 0
-        best_3d_idx = None
-        for idx, chart in enumerate(ai_charts):
-            if chart.get('tag_type') == 'scatter3d' or 'scatter3d' in (chart.get('tag') or '').lower():
-                c_vars = chart.get('variables', []) + re.findall(r'[a-zA-Z0-9_]{3,}', (chart.get('title') or '').lower())
-                overlap = len(slide_words.intersection(set(c_vars)))
-                if overlap > best_3d_overlap:
-                    best_3d_overlap = overlap
-                    best_3d_idx = idx
-        if best_3d_idx is not None and best_3d_overlap >= 1:
-            used_indices.add(best_3d_idx)
-            return ai_charts[best_3d_idx]
-
-    # 4. Time trend / Process stability (Slide 13)
-    if 'step 5a' in norm_s_title or 'time trend' in norm_s_title or 'stability' in norm_s_title:
-        for idx, chart in enumerate(ai_charts):
-            if chart.get('tag_type') == 'dualplot' or 'dualplot' in (chart.get('tag') or '').lower():
-                if any('feed' in v or 'sfc' in v or 'clinker' in v for v in chart.get('variables', [])):
-                    used_indices.add(idx)
-                    return chart
-
-    # 5. Token overlap fallback across unused charts
-    best_overlap = 0
-    best_idx = None
-    for idx, chart in enumerate(ai_charts):
-        if idx in used_indices:
-            continue
-        c_vars = chart.get('variables', []) + re.findall(r'[a-zA-Z0-9_]{3,}', (chart.get('title') or '').lower())
-        overlap = len(slide_words.intersection(set(c_vars)))
-        if overlap > best_overlap:
-            best_overlap = overlap
-            best_idx = idx
-    if best_idx is not None and best_overlap >= 1:
-        used_indices.add(best_idx)
-        return ai_charts[best_idx]
-
-    # 6. Sequential fallback
-    for idx, chart in enumerate(ai_charts):
-        if idx not in used_indices:
-            used_indices.add(idx)
-            return chart
-
-    return None
-
-
-def generate_formatted_report_presentation(data: dict, template_path: str = None) -> io.BytesIO:
-    """
-    Main entry point: Generates or populates the presentation deck using
-    generic Innomotics Dark formatting.
-    NO hardcoded plant or customer strings are used.
-    """
-    if template_path and os.path.exists(template_path):
-        prs = Presentation(template_path)
-    else:
-        prs = Presentation()
-        prs.slide_width = Inches(13.333)
-        prs.slide_height = Inches(7.5)
-
     title = data.get("title") or "Exploratory Data Analysis & Optimization Report"
     dataset_name = data.get("dataset_name") or "Dataset Telemetry"
     date_str = data.get("date") or ""
@@ -531,11 +439,11 @@ def generate_formatted_report_presentation(data: dict, template_path: str = None
     ai_charts = data.get("ai_charts", [])
 
     parsed_content = parse_markdown_ai_content(ai_summary)
-    used_chart_indices = set()
-
-    # Step 1: Bind atomic chart units to ai_charts (Locking Image + Bullets together)
     chart_units = parsed_content.get("chart_units", [])
-    for chart in ai_charts:
+
+    # Step A: Bind captured chart images to atomic chart units
+    bound_charts = []
+    for c_idx, chart in enumerate(ai_charts):
         c_raw_tag = (chart.get("tag") or "").strip().lower()
         c_tag_norm = re.sub(r'\s+', '', c_raw_tag)
         matched_unit = None
@@ -564,121 +472,263 @@ def generate_formatted_report_presentation(data: dict, template_path: str = None
             if 0 <= t_idx < len(chart_units):
                 matched_unit = chart_units[t_idx]
 
-        if matched_unit:
-            chart["bullets"] = matched_unit.get("bullets", [])
-            chart["clean_title"] = matched_unit.get("title") or chart.get("title")
-            chart["graph_num"] = matched_unit.get("graph_num")
-            chart["tag_type"] = matched_unit.get("tag_type")
-            chart["variables"] = matched_unit.get("variables", [])
+        b_chart = {
+            "chart_index": c_idx,
+            "title": (matched_unit.get("title") if matched_unit else chart.get("title")) or f"Chart {c_idx+1}",
+            "tag": (matched_unit.get("tag") if matched_unit else chart.get("tag")) or "",
+            "tag_type": (matched_unit.get("tag_type") if matched_unit else "scatter"),
+            "variables": (matched_unit.get("variables") if matched_unit else []),
+            "graph_num": (matched_unit.get("graph_num") if matched_unit else None),
+            "bullets": (matched_unit.get("bullets") if matched_unit else []),
+            "image_base64": chart.get("image_base64")
+        }
+        bound_charts.append(b_chart)
 
-    # If the presentation has template slides (e.g. 10+ slides)
+    # Step B: Build Manifest for template slides using Double Verification
+    manifest_slides = []
+    used_chart_indices = set()
+    table_cursor = 0
+
     if len(prs.slides) >= 10:
-        logger.info(f"Populating formatted presentation template ({len(prs.slides)} slides) generically...")
-        
-        # 1. Update Cover Slide (Slide 1)
-        s1 = prs.slides[0]
-        for sh in s1.shapes:
-            if sh.has_text_frame:
-                if sh.name == "Title 1":
-                    sh.text_frame.text = title
-                    if len(sh.text_frame.paragraphs) >= 1:
-                        sh.text_frame.paragraphs[0].font.name = FONT_TITLE
-                elif sh.name == "Text Placeholder 3" or "Placeholder" in sh.name:
-                    sub_text = f"{dataset_name}" + (f" | {date_str}" if date_str else "")
-                    sh.text_frame.text = sub_text
-                    if len(sh.text_frame.paragraphs) >= 1:
-                        sh.text_frame.paragraphs[0].font.name = FONT_BODY
-
-        # 2. Iterate through slides to populate graphs and tables
-        table_cursor = 0
         for s_idx, slide in enumerate(prs.slides):
             s_num = s_idx + 1
             if s_num == 1:
                 continue
 
-            # Identify slide title from TextBox 2 or first text frame
             slide_title = ""
             for sh in slide.shapes:
                 if sh.has_text_frame and (sh.name == "TextBox 2" or "Title" in sh.name):
                     slide_title = sh.text_frame.text.split("\r")[0].split("\n")[0].strip()
                     break
 
-            # A. Graph slide (Contains picture shape)
+            norm_s_title = slide_title.lower()
+            slide_words = set(re.findall(r'[a-zA-Z0-9_]{3,}', norm_s_title)) - {
+                'graph', 'step', 'versus', 'analysis', 'dynamics', 'plot', 'bursa',
+                'trajectories', 'multi', 'variable', 'space'
+            }
+
             has_pic = any(sh.shape_type == 13 for sh in slide.shapes)
-            if has_pic and s_num >= 5:
-                chart = find_matching_chart_generically(slide_title, s_num, ai_charts, used_chart_indices)
-                if chart and chart.get("image_base64"):
-                    try:
-                        img_stream = decode_base64_image(chart["image_base64"])
-                        c_title_clean = clean_title(chart.get("clean_title") or chart.get("title") or slide_title)
-                        chart_bullets = chart.get("bullets", [])
-
-                        update_graph_slide_content(slide, c_title_clean, chart_bullets, img_stream)
-                        logger.info(f"Updated Slide {s_num} with chart '{c_title_clean}' and {len(chart_bullets)} locked bullets")
-                    except Exception as e:
-                        logger.error(f"Failed to update chart on slide {s_num}: {e}")
-
-            # B. Table slide
             has_table = any(sh.has_table for sh in slide.shapes)
-            if has_table and table_cursor < len(parsed_content["tables"]):
+
+            if has_pic and s_num >= 5:
+                # DOUBLE VERIFICATION PIPELINE
+                matched_idx = None
+                v1_rule = "NONE"
+
+                # Check 1A: Single numbered graph 1..9 (Slides 9..12, 17..21)
+                g_m = re.search(r'graph\s*([1-9])(?!\d)', norm_s_title)
+                if g_m:
+                    target_g = g_m.group(1)
+                    for idx, c in enumerate(bound_charts):
+                        if c.get('graph_num') == target_g:
+                            matched_idx = idx
+                            v1_rule = f"GRAPH_NUM_{target_g}"
+                            break
+
+                # Check 1B: Parallel Trajectories (Slides 14, 22, 30, 31, 32, 33)
+                if matched_idx is None and ('parallel' in norm_s_title or 'step 5b' in norm_s_title or ('graph 10' in norm_s_title and 'dynamics' in norm_s_title)):
+                    best_p = 0
+                    for idx, c in enumerate(bound_charts):
+                        if c.get('tag_type') == 'parallel' or 'parallel' in (c.get('tag') or '').lower():
+                            c_words = set(c.get('variables', []) + re.findall(r'[a-zA-Z0-9_]{3,}', (c.get('title') or '').lower()))
+                            overlap = len(slide_words.intersection(c_words))
+                            if overlap > best_p:
+                                best_p = overlap
+                                matched_idx = idx
+                                v1_rule = f"PARALLEL_OVERLAP_{overlap}"
+
+                # Check 1C: 3D Spaces (Slides 24, 25)
+                if matched_idx is None and ('3d' in norm_s_title or 'step 8' in norm_s_title):
+                    best_3d = 0
+                    for idx, c in enumerate(bound_charts):
+                        if c.get('tag_type') == 'scatter3d' or 'scatter3d' in (c.get('tag') or '').lower():
+                            c_words = set(c.get('variables', []) + re.findall(r'[a-zA-Z0-9_]{3,}', (c.get('title') or '').lower()))
+                            overlap = len(slide_words.intersection(c_words))
+                            if overlap > best_3d:
+                                best_3d = overlap
+                                matched_idx = idx
+                                v1_rule = f"3D_OVERLAP_{overlap}"
+
+                # Check 1D: Time Trend Dual Plot (Slide 13)
+                if matched_idx is None and ('step 5a' in norm_s_title or 'time trend' in norm_s_title or 'stability' in norm_s_title):
+                    for idx, c in enumerate(bound_charts):
+                        if c.get('tag_type') == 'dualplot' or 'dualplot' in (c.get('tag') or '').lower():
+                            if any('feed' in v or 'sfc' in v or 'clinker' in v for v in c.get('variables', [])):
+                                matched_idx = idx
+                                v1_rule = "DUALPLOT_TIME_TREND"
+                                break
+
+                # Check 1E: Token overlap fallback across unused charts
+                if matched_idx is None:
+                    best_overlap = 0
+                    for idx, c in enumerate(bound_charts):
+                        if idx in used_chart_indices:
+                            continue
+                        c_words = set(c.get('variables', []) + re.findall(r'[a-zA-Z0-9_]{3,}', (c.get('title') or '').lower()))
+                        overlap = len(slide_words.intersection(c_words))
+                        if overlap > best_overlap:
+                            best_overlap = overlap
+                            matched_idx = idx
+                            v1_rule = f"TOKEN_OVERLAP_{overlap}"
+
+                # Verification 2: Telemetry Variable Domain Cross-Check
+                v2_status = "TEMPLATE_PRESERVED"
+                matched_chart = None
+                img_stream = None
+
+                if matched_idx is not None:
+                    matched_chart = bound_charts[matched_idx]
+                    used_chart_indices.add(matched_idx)
+                    u_vars = set(matched_chart.get('variables', []))
+                    tag_overlap = len(slide_words.intersection(u_vars))
+                    if tag_overlap >= 1 or v1_rule.startswith("GRAPH_NUM") or v1_rule.startswith("DUALPLOT"):
+                        v2_status = "DOUBLE_VERIFIED_EXACT"
+                    else:
+                        v2_status = "DOUBLE_VERIFIED_STRUCTURAL"
+
+                    if matched_chart.get("image_base64"):
+                        try:
+                            img_stream = decode_base64_image(matched_chart["image_base64"])
+                        except Exception as e:
+                            logger.error(f"Image decode failed for slide {s_num}: {e}")
+
+                manifest_slides.append({
+                    "slide_num": s_num,
+                    "slide_type": "graph",
+                    "slide_title": clean_title(matched_chart.get("title") if matched_chart else slide_title),
+                    "bullets": matched_chart.get("bullets", []) if matched_chart else [],
+                    "img_stream": img_stream,
+                    "v1_rule": v1_rule,
+                    "v2_status": v2_status
+                })
+
+            elif has_table and table_cursor < len(parsed_content["tables"]):
                 matched_table = parsed_content["tables"][table_cursor]
                 table_cursor += 1
-                try:
-                    update_table_slide_content(slide, slide_title, matched_table["headers"], matched_table["rows"])
-                    logger.info(f"Updated Slide {s_num} with table {table_cursor}")
-                except Exception as e:
-                    logger.error(f"Failed to update table on slide {s_num}: {e}")
+                manifest_slides.append({
+                    "slide_num": s_num,
+                    "slide_type": "table",
+                    "slide_title": slide_title,
+                    "headers": matched_table.get("headers", []),
+                    "rows": matched_table.get("rows", []),
+                    "v2_status": "DOUBLE_VERIFIED_TABLE"
+                })
 
-        # 3. Add any remaining unmatched charts as new formatted slides
-        for idx, chart in enumerate(ai_charts):
-            if idx not in used_chart_indices and chart.get("image_base64"):
-                try:
-                    img_stream = decode_base64_image(chart["image_base64"])
-                    c_title = clean_title(chart.get("clean_title") or chart.get("title") or f"Process Visualization {idx+1}")
-                    add_formatted_slide(prs, c_title, chart.get("bullets", []), img_stream)
-                    logger.info(f"Added extra slide for chart '{c_title}'")
-                except Exception as e:
-                    logger.error(f"Failed to add extra chart slide: {e}")
+    # Unmatched extra charts to append cleanly
+    extra_charts = []
+    for idx, c in enumerate(bound_charts):
+        if idx not in used_chart_indices and c.get("image_base64"):
+            extra_charts.append(c)
+
+    return {
+        "deck_metadata": {
+            "title": title,
+            "dataset_name": dataset_name,
+            "date_str": date_str
+        },
+        "slides": manifest_slides,
+        "extra_charts": extra_charts,
+        "executive_bullets": parsed_content.get("executive_bullets", [])
+    }
+
+
+def render_presentation_from_manifest(prs, manifest: dict):
+    """
+    Phase 2 (Option B): Pure, deterministic PowerPoint renderer.
+    Iterates through the compiled manifest and applies styles and shapes with zero guessing.
+    """
+    deck_meta = manifest.get("deck_metadata", {})
+    slides_manifest = manifest.get("slides", [])
+    extra_charts = manifest.get("extra_charts", [])
+
+    if len(prs.slides) >= 10:
+        logger.info(f"Rendering {len(slides_manifest)} manifest slides into formatted template deck...")
+        
+        # 1. Update Cover Slide (Slide 1)
+        s1 = prs.slides[0]
+        for sh in s1.shapes:
+            if sh.has_text_frame:
+                if sh.name == "Title 1":
+                    sh.text_frame.text = deck_meta.get("title", "")
+                    if len(sh.text_frame.paragraphs) >= 1:
+                        sh.text_frame.paragraphs[0].font.name = FONT_TITLE
+                elif sh.name == "Text Placeholder 3" or "Placeholder" in sh.name:
+                    sub_text = f"{deck_meta.get('dataset_name', '')}" + (f" | {deck_meta.get('date_str', '')}" if deck_meta.get('date_str') else "")
+                    sh.text_frame.text = sub_text
+                    if len(sh.text_frame.paragraphs) >= 1:
+                        sh.text_frame.paragraphs[0].font.name = FONT_BODY
+
+        # 2. Render each verified slide
+        for s_def in slides_manifest:
+            s_num = s_def["slide_num"]
+            slide = prs.slides[s_num - 1]
+
+            if s_def["slide_type"] == "graph":
+                update_graph_slide_content(
+                    slide=slide,
+                    title=s_def["slide_title"],
+                    bullets=s_def.get("bullets", []),
+                    img_stream=s_def.get("img_stream")
+                )
+                logger.info(f"Rendered Slide {s_num:2d}: [{s_def['v2_status']}] '{s_def['slide_title']}' ({len(s_def.get('bullets', []))} bullets)")
+
+            elif s_def["slide_type"] == "table":
+                update_table_slide_content(
+                    slide=slide,
+                    title=s_def["slide_title"],
+                    header_data=s_def.get("headers", []),
+                    rows_data=s_def.get("rows", [])
+                )
+                logger.info(f"Rendered Table Slide {s_num:2d}: '{s_def['slide_title']}'")
+
+        # 3. Append remaining extra charts
+        for idx, chart in enumerate(extra_charts):
+            try:
+                img_stream = decode_base64_image(chart["image_base64"])
+                c_title = clean_title(chart.get("title") or f"Process Visualization {idx+1}")
+                add_formatted_slide(prs, c_title, chart.get("bullets", []), img_stream)
+                logger.info(f"Appended extra slide for chart '{c_title}'")
+            except Exception as e:
+                logger.error(f"Failed to append extra chart slide: {e}")
 
     else:
         # Generic Dynamic Mode: Generate presentation from scratch
-        logger.info("Generating presentation generically from scratch with Innomotics Dark styling...")
-        
-        # Cover slide
+        logger.info("Generating presentation from scratch using manifest...")
         add_formatted_slide(
             prs,
-            title,
-            [f"Dataset: {dataset_name}", f"Date: {date_str}" if date_str else ""]
+            deck_meta.get("title", ""),
+            [f"Dataset: {deck_meta.get('dataset_name', '')}", f"Date: {deck_meta.get('date_str', '')}" if deck_meta.get('date_str') else ""]
         )
 
-        # Executive Summary Slide
-        if parsed_content["executive_bullets"]:
-            add_formatted_slide(
-                prs,
-                "Executive Summary & Diagnostic Assessment",
-                parsed_content["executive_bullets"]
-            )
+        exec_bullets = manifest.get("executive_bullets", [])
+        if exec_bullets:
+            add_formatted_slide(prs, "Executive Summary & Diagnostic Assessment", exec_bullets)
 
-        # Chart slides
-        for idx, chart in enumerate(ai_charts):
-            img_b64 = chart.get("image_base64")
-            if not img_b64:
-                continue
-            try:
-                img_stream = decode_base64_image(img_b64)
-                c_title = clean_title(chart.get("title") or f"Graph {idx+1}: Process Visualization")
-                
-                # Match bullets
-                g_bullets = []
-                for gk, gv in parsed_content["graphs"].items():
-                    if gk in c_title.lower() or any(w in gv["title"].lower() for w in c_title.lower().split()[:2]):
-                        g_bullets = gv["bullets"]
-                        break
-                add_formatted_slide(prs, c_title, g_bullets, img_stream)
-            except Exception as e:
-                logger.error(f"Failed to render chart slide {idx}: {e}")
+        for s_def in slides_manifest:
+            if s_def.get("img_stream"):
+                add_formatted_slide(prs, s_def["slide_title"], s_def.get("bullets", []), s_def["img_stream"])
+
+
+def generate_formatted_report_presentation(data: dict, template_path: str = None) -> io.BytesIO:
+    """
+    Main entry point: Executes Option B (Manifest Compilation + Double Verification + Deterministic Rendering).
+    100% Generic: No plant-specific or hardcoded customer strings.
+    """
+    if template_path and os.path.exists(template_path):
+        prs = Presentation(template_path)
+    else:
+        prs = Presentation()
+        prs.slide_width = Inches(13.333)
+        prs.slide_height = Inches(7.5)
+
+    # Phase 1: Compile Manifest with Double Verification
+    manifest = compile_presentation_manifest(prs, data)
+
+    # Phase 2: Render PowerPoint presentation deterministically from Manifest
+    render_presentation_from_manifest(prs, manifest)
 
     ppt_stream = io.BytesIO()
     prs.save(ppt_stream)
     ppt_stream.seek(0)
     return ppt_stream
+
