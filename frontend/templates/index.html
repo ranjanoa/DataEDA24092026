@@ -690,13 +690,19 @@
     }
 
     function exportPlotHTML(gd, filenameBase = 'plot') {
-      const dataStr = JSON.stringify(gd.data);
-      const layoutStr = JSON.stringify(gd.layout);
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Plotly Export</title><script src="https://cdn.plot.ly/plotly-2.24.1.min.js"><\/script></head><body><div id="p" style="width:100vw;height:100vh;"></div><script>Plotly.newPlot('p', ${dataStr}, ${layoutStr}, {responsive:true});<\/script></body></html>`;
-      const blob = new Blob([html], { type: 'text/html' });
+      const dataStr = JSON.stringify(gd.data || []);
+      const layoutStr = JSON.stringify(gd.layout || gd._fullLayout || {});
+      const safeName = (filenameBase || 'plot').replace(/[^a-zA-Z0-9_\-]/g, '_');
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${safeName}</title><script src="https://cdn.plot.ly/plotly-2.24.1.min.js"><\/script></head><body style="margin:0;background:#0f172a;"><div id="p" style="width:100vw;height:100vh;"></div><script>Plotly.newPlot('p', ${dataStr}, ${layoutStr}, {responsive:true});<\/script></body></html>`;
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = filenameBase + '.html'; a.click();
-      URL.revokeObjectURL(url);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = safeName + '.html';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
     }
 
     function changePlotType(gd, targetType) {
@@ -1393,22 +1399,25 @@
 
       let html = processedText
         .replace(/&/g, '&amp;')
-        .replace(/\[DUALPLOT:\s*([^\|\]]+)\|\s*([^\]]+)\]/gi, (_, left, right) => {
-          const id = `ai-plot-${plotCounter++}`;
+        .replace(/\[DUALPLOT:\s*([^\|\]]+)\|\s*([^\]]+)\]/gi, (match, left, right) => {
+          const tagIdx = plotCounter++;
+          const id = `ai-plot-${tagIdx}`;
           const leftVars  = left.split(',').map(v => v.trim()).filter(Boolean);
           const rightVars = right.split(',').map(v => v.trim()).filter(Boolean);
           plotQueue.push({ id, type: 'dual', leftVars, rightVars, vars: [...leftVars, ...rightVars] });
-          return `<div class="ai-plot-block"><div class="ai-plot-title">DUAL Y-AXIS: ${leftVars.join(', ')} | ${rightVars.join(', ')}</div><div id="${id}" style="height:300px;"></div></div>`;
+          return `<div class="ai-plot-block" data-tag="${encodeURIComponent(match)}" data-tag-index="${tagIdx}"><div class="ai-plot-title">DUAL Y-AXIS: ${leftVars.join(', ')} | ${rightVars.join(', ')}</div><div id="${id}" style="height:300px;"></div></div>`;
         })
-        .replace(/\[PARALLEL:\s*([^\|\]]+)\|\s*COLOR:\s*([^\]]+)\]/gi, (_, vars, colorVar) => {
-          const id = `ai-plot-${plotCounter++}`;
+        .replace(/\[PARALLEL:\s*([^\|\]]+)\|\s*COLOR:\s*([^\]]+)\]/gi, (match, vars, colorVar) => {
+          const tagIdx = plotCounter++;
+          const id = `ai-plot-${tagIdx}`;
           const varList = vars.split(',').map(v => v.trim()).filter(Boolean);
           const cv = colorVar.trim();
           plotQueue.push({ id, type: 'parallel', vars: varList, colorVar: cv });
-          return `<div class="ai-plot-block"><div class="ai-plot-title">PARALLEL COORDINATES - Color: ${cv}</div><div id="${id}" style="height:420px;"></div></div>`;
+          return `<div class="ai-plot-block" data-tag="${encodeURIComponent(match)}" data-tag-index="${tagIdx}"><div class="ai-plot-title">PARALLEL COORDINATES: ${varList.join(', ')} - Color: ${cv}</div><div id="${id}" style="height:420px;"></div></div>`;
         })
-        .replace(/\[SCATTER:\s*X=([^\|\]]+)\|\s*Y=([^\|\]]+)(?:\|\s*COLOR=([^\|\]]+))?(?:\|\s*SCALE=([^\]]+))?\]/gi, (_, xv, yv, cv, sc) => {
-          const id = `ai-plot-${plotCounter++}`;
+        .replace(/\[SCATTER:\s*X=([^\|\]]+)\|\s*Y=([^\|\]]+)(?:\|\s*COLOR=([^\|\]]+))?(?:\|\s*SCALE=([^\]]+))?\]/gi, (match, xv, yv, cv, sc) => {
+          const tagIdx = plotCounter++;
+          const id = `ai-plot-${tagIdx}`;
           const xVar = xv.trim();
           const yVars = yv.split(',').map(v => v.trim()).filter(Boolean);
           const colorVar = cv ? cv.trim() : null;
@@ -1416,33 +1425,37 @@
           const allVars = [...new Set([...yVars, ...(colorVar ? [colorVar] : [])])];
           plotQueue.push({ id, type: 'scatter', xVar, yVars, colorVar, scale, vars: allVars });
           const title = `SCATTER: ${yVars[0]} vs ${xVar}${colorVar ? ' | Color: '+colorVar : ''}`;
-          return `<div class="ai-plot-block"><div class="ai-plot-title">${title}</div><div id="${id}" style="height:340px;"></div></div>`;
+          return `<div class="ai-plot-block" data-tag="${encodeURIComponent(match)}" data-tag-index="${tagIdx}"><div class="ai-plot-title">${title}</div><div id="${id}" style="height:340px;"></div></div>`;
         })
-        .replace(/\[SCATTER3D:\s*X=([^\|\]]+)\|\s*Y=([^\|\]]+)\|\s*Z=([^\|\]]+)(?:\|\s*COLOR=([^\|\]]+))?(?:\|\s*SCALE=([^\]]+))?\]/gi, (_, xv, yv, zv, cv, sc) => {
-          const id = `ai-plot-${plotCounter++}`;
+        .replace(/\[SCATTER3D:\s*X=([^\|\]]+)\|\s*Y=([^\|\]]+)\|\s*Z=([^\|\]]+)(?:\|\s*COLOR=([^\|\]]+))?(?:\|\s*SCALE=([^\]]+))?\]/gi, (match, xv, yv, zv, cv, sc) => {
+          const tagIdx = plotCounter++;
+          const id = `ai-plot-${tagIdx}`;
           const xVar = xv.trim(), yVar = yv.trim(), zVar = zv.trim();
           const colorVar = cv ? cv.trim() : null;
           const scale = sc ? sc.trim() : 'Jet';
           const allVars = [...new Set([yVar, zVar, ...(colorVar ? [colorVar] : [])])];
           plotQueue.push({ id, type: 'scatter3d', xVar, yVar, zVar, colorVar, scale, vars: allVars });
-          return `<div class="ai-plot-block"><div class="ai-plot-title">3D SCATTER: ${xVar} / ${yVar} / ${zVar}${colorVar ? ' | Color: '+colorVar : ''}</div><div id="${id}" style="height:440px;"></div></div>`;
+          return `<div class="ai-plot-block" data-tag="${encodeURIComponent(match)}" data-tag-index="${tagIdx}"><div class="ai-plot-title">3D SCATTER: ${xVar} / ${yVar} / ${zVar}${colorVar ? ' | Color: '+colorVar : ''}</div><div id="${id}" style="height:440px;"></div></div>`;
         })
-        .replace(/\[HISTOGRAM:\s*([^\]]+)\]/gi, (_, vars) => {
-          const id = `ai-plot-${plotCounter++}`;
+        .replace(/\[HISTOGRAM:\s*([^\]]+)\]/gi, (match, vars) => {
+          const tagIdx = plotCounter++;
+          const id = `ai-plot-${tagIdx}`;
           const varList = vars.split(',').map(v => v.trim()).filter(Boolean);
           plotQueue.push({ id, type: 'histogram', vars: varList });
-          return `<div class="ai-plot-block"><div class="ai-plot-title">DISTRIBUTION: ${varList.join(', ')}</div><div id="${id}" style="height:280px;"></div></div>`;
+          return `<div class="ai-plot-block" data-tag="${encodeURIComponent(match)}" data-tag-index="${tagIdx}"><div class="ai-plot-title">DISTRIBUTION: ${varList.join(', ')}</div><div id="${id}" style="height:280px;"></div></div>`;
         })
-        .replace(/\[BOX:\s*([^\]]+)\]/gi, (_, vars) => {
-          const id = `ai-plot-${plotCounter++}`;
+        .replace(/\[BOX:\s*([^\]]+)\]/gi, (match, vars) => {
+          const tagIdx = plotCounter++;
+          const id = `ai-plot-${tagIdx}`;
           const varList = vars.split(',').map(v => v.trim()).filter(Boolean);
           plotQueue.push({ id, type: 'box', vars: varList });
-          return `<div class="ai-plot-block"><div class="ai-plot-title">BOX PLOT: ${varList.join(', ')}</div><div id="${id}" style="height:300px;"></div></div>`;
+          return `<div class="ai-plot-block" data-tag="${encodeURIComponent(match)}" data-tag-index="${tagIdx}"><div class="ai-plot-title">BOX PLOT: ${varList.join(', ')}</div><div id="${id}" style="height:300px;"></div></div>`;
         })
-        .replace(/\[PLOT:\s*([^\]]+)\]/gi, (_, vars) => {
-          const id = `ai-plot-${plotCounter++}`;
+        .replace(/\[PLOT:\s*([^\]]+)\]/gi, (match, vars) => {
+          const tagIdx = plotCounter++;
+          const id = `ai-plot-${tagIdx}`;
           plotQueue.push({ id, type: 'timeseries', vars: vars.split(',').map(v => v.trim()) });
-          return `<div class="ai-plot-block"><div class="ai-plot-title">${vars.trim()}</div><div id="${id}" style="height:260px;"></div></div>`;
+          return `<div class="ai-plot-block" data-tag="${encodeURIComponent(match)}" data-tag-index="${tagIdx}"><div class="ai-plot-title">${vars.trim()}</div><div id="${id}" style="height:260px;"></div></div>`;
         })
         .replace(/^### (.+)$/gm, '<h3>$1</h3>')
         .replace(/^## (.+)$/gm,  '<h2>$1</h2>')
@@ -1564,30 +1577,46 @@
           }
           else if (item.type === 'parallel') {
             const { vars: pvars, colorVar } = item;
-            const allFetch = [...new Set([...pvars, colorVar])];
-            const result = await fetchPlotData('timestamp', allFetch, 5000);
-            if (result.error && result.missing.length) {
-              const good = allFetch.filter(v => !result.missing.includes(v));
-              if (good.length < 3) { showPlotError(plotEl, result.error, result.missing); continue; }
+            const allFetch = [...new Set([...pvars, colorVar])].filter(Boolean);
+            let fetchResult = await fetchPlotData('timestamp', allFetch, 5000);
+            if (fetchResult.error && fetchResult.missing && fetchResult.missing.length) {
+              const good = allFetch.filter(v => !fetchResult.missing.includes(v));
+              if (good.length < 2) { 
+                showPlotError(plotEl, fetchResult.error, fetchResult.missing); 
+                continue; 
+              }
+              fetchResult = await fetchPlotData('timestamp', good, 5000);
             }
-            if (result.error) { showPlotError(plotEl, result.error, result.missing); continue; }
-            const data = result.data;
-            const dimensions = pvars.filter(v => data[v]).map(v => {
+            if (fetchResult.error) { 
+              showPlotError(plotEl, fetchResult.error, fetchResult.missing); 
+              continue; 
+            }
+            const data = fetchResult.data || {};
+            const activePvars = pvars.filter(v => data[v] && data[v].length > 0);
+            if (activePvars.length < 2) {
+              showPlotError(plotEl, 'Parallel Coordinates requires at least 2 valid variables with data', fetchResult.missing);
+              continue;
+            }
+            const dimensions = activePvars.map(v => {
               const s = _aiStatsMap[v];
               const dim = { label: v.replace(/_/g,' '), values: data[v] };
               if (s && s.min != null && s.max != null) dim.range = [s.min, s.max];
               return dim;
             });
+            const activeColorVar = (colorVar && data[colorVar] && data[colorVar].length > 0) ? colorVar : activePvars[0];
             Plotly.newPlot(plotEl, [{
               type: 'parcoords',
-              line: { color: data[colorVar] || [], colorscale: 'Jet', showscale: true,
-                colorbar: { title: colorVar.replace(/_/g,' '), titleside:'right', thickness:14, len:0.75, tickfont:{size:9,color:'#94a3b8'}, titlefont:{size:10,color:'#a78bfa'} }
+              line: { 
+                color: data[activeColorVar] || [], 
+                colorscale: 'Jet', 
+                showscale: true,
+                colorbar: { title: activeColorVar.replace(/_/g,' '), titleside:'right', thickness:14, len:0.75, tickfont:{size:9,color:'#94a3b8'}, titlefont:{size:10,color:'#a78bfa'} }
               },
               dimensions, labelangle: -25,
               labelfont: { color: '#cbd5e1', size: 9 }
             }], {
               margin:{t:50,r:90,b:20,l:50}, paper_bgcolor:'rgba(15,23,42,0)', font:{color:'#94a3b8',size:9}
-            }, { responsive:true, displaylogo:false });
+            }, cfg);
           }
           else if (item.type === 'scatter') {
             let { xVar, yVars, colorVar, scale } = item;
@@ -1714,24 +1743,38 @@
       });
     }
 
-    function exportAIChartsHTML() {
-      const plotBlocks = document.querySelectorAll('.ai-plot-block');
+    async function exportAIChartsHTML() {
+      const btn = el('btnExportAIChartsHTML');
+      const plotBlocks = Array.from(document.querySelectorAll('.ai-plot-block'));
       if (plotBlocks.length === 0) {
         alert("No AI charts found to export.");
         return;
       }
+      const originalText = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ Preparing export...'; }
       let count = 0;
-      plotBlocks.forEach((block, idx) => {
-        const titleEl = block.querySelector('.ai-plot-title');
-        const plotEl = block.querySelector('[id^="ai-plot-"]');
-        if (plotEl && plotEl.data && plotEl.layout) {
-          const title = titleEl ? titleEl.textContent.trim().toLowerCase().replace(/[^a-z0-9]/gi, '_') : `ai_chart_${idx}`;
-          exportPlotHTML(plotEl, title);
-          count++;
+      try {
+        for (let idx = 0; idx < plotBlocks.length; idx++) {
+          const block = plotBlocks[idx];
+          const titleEl = block.querySelector('.ai-plot-title');
+          const plotEl = block.querySelector('[id^="ai-plot-"]');
+          if (plotEl && plotEl.data && (plotEl.layout || plotEl._fullLayout)) {
+            const title = titleEl ? titleEl.textContent.trim().toLowerCase().replace(/[^a-z0-9]/gi, '_') : `ai_chart_${idx}`;
+            if (btn) btn.textContent = `⏳ Exporting ${count + 1}...`;
+            exportPlotHTML(plotEl, title);
+            count++;
+            // Stagger downloads by 300ms so browser download manager doesn't throttle/drop files
+            await new Promise(r => setTimeout(r, 300));
+          }
         }
-      });
-      if (count === 0) {
-        alert("No active interactive plots found in the AI response to export.");
+        if (count === 0) {
+          alert("No active interactive plots found in the AI response to export. Please ensure the charts have rendered.");
+        }
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = originalText;
+        }
       }
     }
 
@@ -1744,24 +1787,43 @@
 
         // Capture all rendered AI charts as PNG images
         const ai_charts = [];
-        const plotBlocks = document.querySelectorAll('.ai-plot-block');
-        for (const block of plotBlocks) {
+        const plotBlocks = Array.from(document.querySelectorAll('.ai-plot-block'));
+        for (let bIdx = 0; bIdx < plotBlocks.length; bIdx++) {
+          const block = plotBlocks[bIdx];
           const titleEl = block.querySelector('.ai-plot-title');
           const plotEl  = block.querySelector('[id^="ai-plot-"]');
           if (!plotEl || !plotEl._fullLayout) continue; // skip if not rendered
+          btn.textContent = `⏳ Capturing chart ${bIdx + 1}/${plotBlocks.length}...`;
+          let imgData = null;
           try {
-            const imgData = await Plotly.toImage(plotEl, {
+            imgData = await Plotly.toImage(plotEl, {
               format: 'png',
               width: 1200,
               height: 700,
               scale: 2
             });
+          } catch (scale2Err) {
+            console.warn("Plotly.toImage scale:2 failed, attempting scale:1 fallback (WebGL/memory):", scale2Err);
+            try {
+              imgData = await Plotly.toImage(plotEl, {
+                format: 'png',
+                width: 1000,
+                height: 600,
+                scale: 1
+              });
+            } catch (scale1Err) {
+              console.error("Failed to capture chart for PPTX:", scale1Err);
+            }
+          }
+          if (imgData) {
+            const rawTag = block.getAttribute('data-tag') ? decodeURIComponent(block.getAttribute('data-tag')) : '';
+            const tagIndex = parseInt(block.getAttribute('data-tag-index') || '-1', 10);
             ai_charts.push({
               title: titleEl ? titleEl.textContent : 'AI Chart',
+              tag: rawTag,
+              tag_index: tagIndex,
               image_base64: imgData
             });
-          } catch (chartErr) {
-            console.error("Failed to capture chart for PPTX:", chartErr);
           }
         }
 
