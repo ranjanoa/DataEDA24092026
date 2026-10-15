@@ -1479,21 +1479,35 @@
 
       targetEl.innerHTML = `<p>${html}</p>`;
 
-      // Step 3: Create derived variables
-      for (const { name, formula, chipId } of derivedQueue) {
-        const chip = document.getElementById(chipId);
-        try {
-          const fd = new FormData();
-          fd.append('name', name);
-          fd.append('formula', formula);
-          const r = await fetch(`${API}/add-derived`, { method: 'POST', body: fd });
-          const j = await r.json();
-          if (!r.ok) throw new Error(j.message || r.statusText);
-          if (j.columns) { columns = j.columns; populateSelectors(); }
-          if (chip) chip.outerHTML = `<span class="derived-chip derived-chip--ok">Created: <strong>${name}</strong> = <code>${formula}</code></span>`;
-        } catch(err) {
-          if (chip) chip.outerHTML = `<span class="derived-chip derived-chip--err">Failed: <strong>${name}</strong> - ${err.message}</span>`;
+      // Step 3: Create derived variables (multi-pass resolution for dependencies)
+      let dQueue = [...derivedQueue];
+      let maxPasses = 3;
+      while (dQueue.length > 0 && maxPasses-- > 0) {
+        const nextQueue = [];
+        for (const item of dQueue) {
+          const { name, formula, chipId } = item;
+          const chip = document.getElementById(chipId);
+          try {
+            const fd = new FormData();
+            fd.append('name', name);
+            fd.append('formula', formula);
+            const r = await fetch(`${API}/add-derived`, { method: 'POST', body: fd });
+            const j = await r.json();
+            if (!r.ok) {
+              const errMsg = j.message || r.statusText;
+              if (maxPasses > 0 && errMsg.includes('not defined')) {
+                nextQueue.push(item);
+                continue;
+              }
+              throw new Error(errMsg);
+            }
+            if (j.columns) { columns = j.columns; populateSelectors(); }
+            if (chip) chip.outerHTML = `<span class="derived-chip derived-chip--ok">Created: <strong>${name}</strong> = <code>${formula}</code></span>`;
+          } catch(err) {
+            if (chip) chip.outerHTML = `<span class="derived-chip derived-chip--err">Failed: <strong>${name}</strong> - ${err.message}</span>`;
+          }
         }
+        dQueue = nextQueue;
       }
 
       // Step 4: Pre-fetch stats once

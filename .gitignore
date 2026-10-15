@@ -73,5 +73,9 @@ patch_renderer.py
 debug_parse.py
 test_*.py
 timetrim.py
+slide_*.png
+test_*.pptx
+inspect_*.py
+extract_*.py
 
 
