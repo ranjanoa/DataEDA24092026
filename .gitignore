@@ -60,7 +60,11 @@ project/
 # Non-application prompts, presentation folders, and test/scratch scripts
 SPCC/
 Bursa Cimento/
+bursa cimento new/
 adana/
+Turk Cimento/
+MIZU/
+YANBU/
 *.md
 !README.md
 *.docx

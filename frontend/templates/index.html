@@ -336,12 +336,24 @@
                 </div>
               </div>
               
-              <div>
+              <div class="flex flex-wrap items-center gap-4 mt-2">
                 <label for="useLegendRanges"
-                  class="flex items-center gap-2 mt-2 text-sm font-medium text-gray-400 cursor-pointer">
+                  class="flex items-center gap-2 text-sm font-medium text-gray-400 cursor-pointer">
                   <input type="checkbox" id="useLegendRanges"
                     class="rounded border-gray-300 text-blue-600 shadow-sm focus:ring-blue-200">
                   Use Legend Ranges
+                </label>
+                <label for="showOptCustom"
+                  class="flex items-center gap-2 text-sm font-medium text-green-400 cursor-pointer">
+                  <input type="checkbox" id="showOptCustom" checked
+                    class="rounded border-gray-300 text-green-600 shadow-sm focus:ring-green-200">
+                  Show Optimum Region (Circle / Box)
+                </label>
+                <label for="showStableCustom"
+                  class="flex items-center gap-2 text-sm font-medium text-blue-400 cursor-pointer">
+                  <input type="checkbox" id="showStableCustom" checked
+                    class="rounded border-gray-300 text-blue-600 shadow-sm focus:ring-blue-200">
+                  Show Stable (Q1–Q3)
                 </label>
               </div>
               
@@ -428,10 +440,10 @@
     <div class="glass p-6 rounded-3xl border border-white/10 shadow-2xl space-y-4" id="aiAssistantBox">
       <h2 class="text-xl font-tech neon-text uppercase border-b border-white/10 pb-4">🤖 Cognitive Intelligence Module</h2>
       <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
-        <div class="md:col-span-1 space-y-4">
+        <form onsubmit="return false;" class="md:col-span-1 space-y-4">
           <div>
             <label class="block text-xs font-medium text-gray-400 uppercase mb-1">Access Protocol (API Key)</label>
-            <input type="password" id="apiKey" placeholder="Secure Entry..." class="w-full p-2 rounded-lg" />
+            <input type="password" id="apiKey" autocomplete="current-password" placeholder="Secure Entry..." class="w-full p-2 rounded-lg" />
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-400 uppercase mb-1">Neural Core</label>
@@ -446,10 +458,10 @@
             <input type="text" id="apiUrl" placeholder="https://api.yourproxy.com/v1"
               class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm" />
           </div>
-          <button id="btnSaveApiKey"
+          <button id="btnSaveApiKey" type="button"
             class="w-full mt-2 bg-gray-600 text-white text-xs font-medium py-1.5 px-3 rounded-md hover:bg-gray-700">Save
             Config</button>
-        </div>
+        </form>
         <div class="md:col-span-3 space-y-2">
           <div>
             <label for="aiQuerySelect" class="block text-sm font-medium text-gray-400">Pre-defined Queries</label>
@@ -566,6 +578,7 @@
       const fullscreenIcon = { width: 1024, height: 1024, path: 'M64,384 L64,64 L384,64 M640,960 L960,960 L960,640 M64,640 L384,640 L384,960 M640,64 L960,64 L960,384' };
       const cameraIcon = Plotly.Icons.camera || { width: 1024, height: 1024, path: 'M128,256 L896,256 L896,768 L128,768 Z M256,512 A256,256 0 1,0 768,512 A256,256 0 1,0 256,512 Z' };
       const htmlIcon = { width: 1024, height: 1024, path: 'M256,128 L768,128 L768,896 L256,896 Z M384,320 L640,320 M384,512 L640,512 M384,704 L512,704' }; // Simple document icon
+      const pptIcon = { width: 1024, height: 1024, path: 'M128,192 L896,192 L896,736 L128,736 Z M320,864 L704,864 M512,736 L512,864 M288,352 L544,352 M288,480 L736,480 M288,608 L640,608' };
       const linesIcon = { width: 1024, height: 1024, path: 'M64,768 L256,640 L448,704 L640,512 L832,576 L960,448' };
       const pointsIcon = { width: 1024, height: 1024, path: 'M256,768 A32,32 0 1,0 256,704 A32,32 0 1,0 256,768 Z M448,704 A32,32 0 1,0 448,640 A32,32 0 1,0 448,704 Z M640,512 A32,32 0 1,0 640,448 A32,32 0 1,0 640,512 Z M832,576 A32,32 0 1,0 832,512 A32,32 0 1,0 832,576 Z' };
       const barIcon = { width: 1024, height: 1024, path: 'M128,896 L256,896 L256,512 L128,512 Z M384,896 L512,896 L512,384 L384,384 Z M640,896 L768,896 L768,256 L640,256 Z' };
@@ -574,8 +587,12 @@
       const config = {
         responsive: true,
         displaylogo: false,
+        edits: { shapePosition: true },
         modeBarButtonsToRemove: ['toImage'],
         modeBarButtonsToAdd: [
+          'drawrect',
+          'drawcircle',
+          'eraseshape',
           { name: 'Fullscreen', title: 'Toggle fullscreen', icon: fullscreenIcon, click: (gd) => togglePlotFullscreen(gd) },
           {
             name: 'Save PNG (white bg)', title: 'Save PNG (white background)', icon: cameraIcon, click: (gd) => {
@@ -593,6 +610,12 @@
             name: 'Export HTML', title: 'Export as standalone HTML', icon: htmlIcon, click: (gd) => {
               const title = (gd.layout && (gd.layout.title?.text || gd.layout.title)) || 'plot';
               exportPlotHTML(gd, String(title).toLowerCase().replace(/\s+/g, '_') || 'plot');
+            }
+          },
+          {
+            name: 'Export PPT', title: 'Export this plot as PowerPoint (.pptx)', icon: pptIcon, click: (gd) => {
+              const title = (gd.layout && (gd.layout.title?.text || gd.layout.title)) || 'DataEDA Plot';
+              exportSinglePlotPPT(gd, String(title));
             }
           }
         ]
@@ -705,6 +728,476 @@
       setTimeout(() => URL.revokeObjectURL(url), 10000);
     }
 
+    async function exportSinglePlotPPT(gd, title = 'DataEDA Plot') {
+      try {
+        updateStatus(`Exporting "${title}" to PowerPoint...`);
+        let imgData = null;
+        try {
+          imgData = await Plotly.toImage(gd, { format: 'png', width: 1400, height: 800, scale: 2 });
+        } catch (_) {
+          imgData = await Plotly.toImage(gd, { format: 'png', width: 1200, height: 700, scale: 1 });
+        }
+        const safeFile = String(title || 'DataEDA_Plot').replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 60) || 'DataEDA_Plot';
+        const res = await fetch(`${API}/export-plot-pptx`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: title,
+            subtitle: gd._optimumSubtitle || 'Stable (Q1–Q3) & Optimum (Median ± 0.5 IQR) Regions Highlighted',
+            image_base64: imgData,
+            filename: safeFile
+          })
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${safeFile}.pptx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        updateStatus('Ready');
+      } catch (e) {
+        console.error('Single plot PPT export failed:', e);
+        alert('PowerPoint export failed: ' + e.message);
+        updateStatus('Export Error');
+      }
+    }
+
+    /* ============================
+       Optimum / Stable Region Overlay Helpers
+       ============================ */
+    window._statsMap = window._statsMap || {};
+
+    const DEFAULT_NEWSHAPE = {
+      line: { color: '#00ff88', width: 3, dash: 'solid' },
+      fillcolor: 'rgba(0, 255, 136, 0.24)'
+    };
+
+    async function ensureStatsMap(force = false) {
+      if (!force && window._statsMap && Object.keys(window._statsMap).length > 0) {
+        return window._statsMap;
+      }
+      try {
+        const res = await fetch(`${API}/stats`);
+        if (res.ok) {
+          const sd = await res.json();
+          const map = {};
+          (sd.stats || []).forEach(s => {
+            map[s.variable] = s;
+            // Also store normalized keys for robust lookups
+            if (s.variable.includes('_')) map[s.variable.replace(/_/g, ' ')] = s;
+            if (s.variable.includes(' ')) map[s.variable.replace(/ /g, '_')] = s;
+          });
+          window._statsMap = map;
+        }
+      } catch (e) {
+        console.warn('Could not load stats for optimum regions:', e);
+      }
+      return window._statsMap;
+    }
+
+    function getOptBounds(varName, statsMap = window._statsMap) {
+      if (!statsMap || !varName) return null;
+      let s = statsMap[varName];
+      if (!s) s = statsMap[varName.replace(/_/g, ' ')];
+      if (!s) s = statsMap[varName.replace(/ /g, '_')];
+      if (!s) {
+        const norm = String(varName).toLowerCase().replace(/[^a-z0-9]/g, '');
+        for (const k in statsMap) {
+          if (String(k).toLowerCase().replace(/[^a-z0-9]/g, '') === norm) {
+            s = statsMap[k];
+            break;
+          }
+        }
+      }
+      if (!s || s.q1 == null || s.q3 == null) return null;
+      const iqr = s.q3 - s.q1;
+      const optLow = s.opt_low != null ? s.opt_low : (s.median != null ? s.median - 0.5 * iqr : s.q1);
+      const optHigh = s.opt_high != null ? s.opt_high : (s.median != null ? s.median + 0.5 * iqr : s.q3);
+      return {
+        q1: s.q1,
+        q3: s.q3,
+        median: s.median,
+        optLow,
+        optHigh,
+        min: s.min,
+        max: s.max
+      };
+    }
+
+    function fmtNum(v) {
+      if (v == null || isNaN(v)) return '—';
+      return Math.abs(v) >= 100 ? v.toFixed(1) : v.toFixed(2);
+    }
+
+    // 1D Band (Horizontal for Time Series, Vertical for Histogram)
+    function build1DOptOverlay(varName, opts = {}) {
+      const {
+        axis = 'y',        // 'y' | 'y2' | 'x'
+        showStable = true,
+        showOpt = true,
+        statsMap = window._statsMap,
+        showLabel = true
+      } = opts;
+      const b = getOptBounds(varName, statsMap);
+      if (!b) return { shapes: [], annotations: [] };
+
+      const shapes = [];
+      const annotations = [];
+
+      if (axis === 'x') {
+        if (showStable) {
+          shapes.push({
+            type: 'rect', xref: 'x', yref: 'paper',
+            x0: b.q1, x1: b.q3, y0: 0, y1: 1,
+            fillcolor: 'rgba(148, 163, 184, 0.10)',
+            line: { color: 'rgba(148, 163, 184, 0.7)', width: 1.5, dash: 'dot' },
+            layer: 'below'
+          });
+        }
+        if (showOpt) {
+          shapes.push({
+            type: 'rect', xref: 'x', yref: 'paper',
+            x0: b.optLow, x1: b.optHigh, y0: 0, y1: 1,
+            fillcolor: 'rgba(0, 255, 136, 0.22)',
+            line: { color: '#00ff88', width: 3, dash: 'solid' },
+            layer: 'above'
+          });
+          if (showLabel) {
+            annotations.push({
+              x: (b.optLow + b.optHigh) / 2, y: 0.015, xref: 'x', yref: 'paper',
+              text: `🎯 OPTIMUM (${fmtNum(b.optLow)}–${fmtNum(b.optHigh)})`,
+              showarrow: false, yanchor: 'bottom', xanchor: 'center',
+              font: { size: 9.5, color: '#00ff88', weight: 'bold' },
+              bgcolor: 'rgba(15, 23, 42, 0.94)',
+              bordercolor: '#00ff88', borderwidth: 1.5, borderpad: 3
+            });
+          }
+        }
+      } else {
+        if (showStable) {
+          shapes.push({
+            type: 'rect', xref: 'paper', yref: axis,
+            x0: 0, x1: 1, y0: b.q1, y1: b.q3,
+            fillcolor: 'rgba(148, 163, 184, 0.10)',
+            line: { color: 'rgba(148, 163, 184, 0.7)', width: 1.5, dash: 'dot' },
+            layer: 'below'
+          });
+        }
+        if (showOpt) {
+          shapes.push({
+            type: 'rect', xref: 'paper', yref: axis,
+            x0: 0, x1: 1, y0: b.optLow, y1: b.optHigh,
+            fillcolor: 'rgba(0, 255, 136, 0.22)',
+            line: { color: '#00ff88', width: 3, dash: 'solid' },
+            layer: 'above'
+          });
+          if (showLabel) {
+            // Placed docked right below along the X-axis line to avoid overlapping the line trace
+            annotations.push({
+              x: 0.5, y: 0.015, xref: 'paper', yref: 'paper',
+              text: `🎯 OPTIMUM BAND: ${fmtNum(b.optLow)} – ${fmtNum(b.optHigh)}`,
+              showarrow: false, xanchor: 'center', yanchor: 'bottom',
+              font: { size: 9.5, color: '#00ff88', weight: 'bold' },
+              bgcolor: 'rgba(15, 23, 42, 0.94)',
+              bordercolor: '#00ff88', borderwidth: 1.5, borderpad: 3
+            });
+          }
+        }
+      }
+      return { shapes, annotations };
+    }
+
+    // 2D Scatter Plot: Bold Thick Rectangular Box (Optimum) + Stable Outer Box (Q1-Q3)
+    function build2DScatterOptOverlay(xVar, yVar, opts = {}) {
+      const {
+        showStable = true,
+        showOpt = true,
+        statsMap = window._statsMap,
+        showLabel = true
+      } = opts;
+      const bx = getOptBounds(xVar, statsMap);
+      const by = getOptBounds(yVar, statsMap);
+      if (!bx && !by) return { shapes: [], annotations: [] };
+      if (!bx) return build1DOptOverlay(yVar, { axis: 'y', showStable, showOpt, statsMap, showLabel });
+      if (!by) return build1DOptOverlay(xVar, { axis: 'x', showStable, showOpt, statsMap, showLabel });
+
+      const shapes = [];
+      const annotations = [];
+
+      // 1. Process Stability Box (Q1-Q3) - Outer baseline frame
+      if (showStable) {
+        shapes.push({
+          type: 'rect', xref: 'x', yref: 'y',
+          x0: bx.q1, x1: bx.q3, y0: by.q1, y1: by.q3,
+          fillcolor: 'rgba(148, 163, 184, 0.08)',
+          line: { color: 'rgba(148, 163, 184, 0.75)', width: 1.8, dash: 'dot' },
+          layer: 'below'
+        });
+      }
+
+      // 2. Bold Thick Rectangular Box (Optimum Operating Zone)
+      if (showOpt) {
+        // High-contrast, vibrant emerald solid rectangular box
+        shapes.push({
+          type: 'rect', xref: 'x', yref: 'y',
+          x0: bx.optLow, x1: bx.optHigh, y0: by.optLow, y1: by.optHigh,
+          fillcolor: 'rgba(0, 255, 136, 0.24)',
+          line: { color: '#00ff88', width: 3.5, dash: 'solid' },
+          layer: 'above'
+        });
+
+        // Subtle internal crosshair guides at the optimum medians
+        if (bx.median != null && by.median != null) {
+          shapes.push({
+            type: 'line', xref: 'x', yref: 'y',
+            x0: bx.optLow, x1: bx.optHigh, y0: by.median, y1: by.median,
+            line: { color: 'rgba(0, 255, 136, 0.55)', width: 1, dash: 'dash' },
+            layer: 'above'
+          });
+          shapes.push({
+            type: 'line', xref: 'x', yref: 'y',
+            x0: bx.median, x1: bx.median, y0: by.optLow, y1: by.optHigh,
+            line: { color: 'rgba(0, 255, 136, 0.55)', width: 1, dash: 'dash' },
+            layer: 'above'
+          });
+        }
+
+        // Optimum Zone label docked right below along the X-axis to prevent overlapping plot contents
+        if (showLabel) {
+          annotations.push({
+            x: (bx.optLow + bx.optHigh) / 2,
+            y: 0.015,
+            xref: 'x',
+            yref: 'paper',
+            text: `🎯 OPTIMUM: ${fmtNum(bx.optLow)}–${fmtNum(bx.optHigh)} × ${fmtNum(by.optLow)}–${fmtNum(by.optHigh)}`,
+            showarrow: false,
+            xanchor: 'center',
+            yanchor: 'bottom',
+            font: { size: 9.5, color: '#00ff88', weight: 'bold', family: 'Outfit, Arial, sans-serif' },
+            bgcolor: 'rgba(15, 23, 42, 0.95)',
+            bordercolor: '#00ff88',
+            borderwidth: 1.5,
+            borderpad: 3
+          });
+        }
+      }
+      return { shapes, annotations };
+    }
+
+    // Multi-Variable / Dual-Axis Time Series: Vertical boxes where ALL variables are simultaneously optimum
+    function buildJointOptTimeOverlay(timestamps, dataObj, varNames, opts = {}) {
+      const { showOpt = true, statsMap = window._statsMap, showLabel = true } = opts;
+      if (!showOpt || !timestamps || !timestamps.length || !varNames || varNames.length < 2) {
+        return { shapes: [], annotations: [] };
+      }
+      const validVars = varNames.filter(v => dataObj[v] && getOptBounds(v, statsMap));
+      if (validVars.length < 2) return { shapes: [], annotations: [] };
+
+      const bounds = validVars.map(v => ({ v, b: getOptBounds(v, statsMap) }));
+      const windows = [];
+      let startIdx = -1;
+
+      for (let i = 0; i < timestamps.length; i++) {
+        let allIn = true;
+        for (const item of bounds) {
+          const val = dataObj[item.v][i];
+          if (val == null || isNaN(val) || val < item.b.optLow || val > item.b.optHigh) {
+            allIn = false;
+            break;
+          }
+        }
+        if (allIn && startIdx === -1) startIdx = i;
+        else if (!allIn && startIdx !== -1) {
+          if (i - startIdx >= 2) windows.push([startIdx, i - 1]);
+          startIdx = -1;
+        }
+      }
+      if (startIdx !== -1 && timestamps.length - startIdx >= 2) {
+        windows.push([startIdx, timestamps.length - 1]);
+      }
+      if (!windows.length) return { shapes: [], annotations: [] };
+
+      // Keep top 12 widest windows so the chart stays clean and fast
+      const topWindows = windows
+        .sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]))
+        .slice(0, 12);
+
+      const shapes = topWindows.map(([s, e]) => ({
+        type: 'rect', xref: 'x', yref: 'paper',
+        x0: timestamps[s], x1: timestamps[e], y0: 0, y1: 1,
+        fillcolor: 'rgba(0, 255, 136, 0.20)',
+        line: { color: '#00ff88', width: 2, dash: 'solid' },
+        layer: 'above'
+      }));
+
+      const annotations = [];
+      if (showLabel && topWindows.length) {
+        const [ws, we] = topWindows[0];
+        const mid = timestamps[Math.floor((ws + we) / 2)];
+        annotations.push({
+          x: mid, y: 0.99, xref: 'x', yref: 'paper',
+          text: '🎯 JOINT OPTIMUM ZONE',
+          showarrow: false, yanchor: 'top',
+          font: { size: 9, color: '#00ff88', weight: 'bold' },
+          bgcolor: 'rgba(15, 23, 42, 0.92)',
+          bordercolor: '#00ff88', borderwidth: 1.5, borderpad: 3
+        });
+      }
+      return { shapes, annotations };
+    }
+
+    // 3D Scatter Plot: Highly visible 3D Cube (mesh3d translucent faces + thick neon wireframe edges + corner vertices)
+    function build3DOptBoxTraces(xVar, yVar, zVar, statsMap = window._statsMap, dataObj = null) {
+      let bx = getOptBounds(xVar, statsMap);
+      const by = getOptBounds(yVar, statsMap);
+      const bz = getOptBounds(zVar, statsMap);
+
+      if (!by || !bz) return [];
+
+      let x0, x1;
+      if (bx) {
+        x0 = bx.optLow;
+        x1 = bx.optHigh;
+      } else if (dataObj && dataObj[xVar] && dataObj[xVar].length) {
+        const xArr = dataObj[xVar].filter(v => typeof v === 'number' && !isNaN(v));
+        if (xArr.length) {
+          x0 = Math.min(...xArr);
+          x1 = Math.max(...xArr);
+        } else {
+          return [];
+        }
+      } else {
+        return [];
+      }
+
+      const y0 = by.optLow, y1 = by.optHigh;
+      const z0 = bz.optLow, z1 = bz.optHigh;
+
+      // 8 Vertices of the 3D Cube
+      const vx = [x0, x1, x1, x0, x0, x1, x1, x0];
+      const vy = [y0, y0, y1, y1, y0, y0, y1, y1];
+      const vz = [z0, z0, z0, z0, z1, z1, z1, z1];
+
+      // 12 Triangles covering the 6 Cube Faces
+      const i = [0, 0, 4, 4, 0, 0, 2, 2, 0, 0, 1, 1];
+      const j = [1, 2, 5, 6, 1, 5, 3, 7, 3, 7, 2, 6];
+      const k = [2, 3, 6, 7, 5, 4, 7, 6, 7, 4, 6, 5];
+
+      // 1. Semi-transparent 3D Cube Mesh
+      const cubeMesh = {
+        type: 'mesh3d',
+        x: vx, y: vy, z: vz,
+        i: i, j: j, k: k,
+        name: '🎯 3D Optimum Cube',
+        color: '#00ff88',
+        opacity: 0.35,
+        flatshading: true,
+        lighting: {
+          ambient: 0.9,
+          diffuse: 0.8,
+          specular: 0.3,
+          roughness: 0.4
+        },
+        hoverinfo: 'name'
+      };
+
+      // 2. Thick, Bold Glowing Edge Wireframe
+      const edgeX = [
+        x0, x1, x1, x0, x0, // Bottom loop
+        x0,                 // Pillar to top
+        x0, x1, x1, x0, x0, // Top loop
+        null,
+        x1, x1,             // Pillar 1-5
+        null,
+        x1, x1,             // Pillar 2-6
+        null,
+        x0, x0              // Pillar 3-7
+      ];
+      const edgeY = [
+        y0, y0, y1, y1, y0,
+        y0,
+        y0, y0, y1, y1, y0,
+        null,
+        y0, y0,
+        null,
+        y1, y1,
+        null,
+        y1, y1
+      ];
+      const edgeZ = [
+        z0, z0, z0, z0, z0,
+        z1,
+        z1, z1, z1, z1, z1,
+        null,
+        z0, z1,
+        null,
+        z0, z1,
+        null,
+        z0, z1
+      ];
+
+      const cubeEdges = {
+        type: 'scatter3d',
+        mode: 'lines',
+        name: '🎯 Optimum Box Edges',
+        x: edgeX, y: edgeY, z: edgeZ,
+        line: {
+          color: '#00ff88',
+          width: 8
+        },
+        hoverinfo: 'name'
+      };
+
+      // 3. Glowing Corner Markers (8 vertices)
+      const cubeCorners = {
+        type: 'scatter3d',
+        mode: 'markers',
+        name: '🎯 Optimum Corner Limits',
+        x: vx, y: vy, z: vz,
+        marker: {
+          size: 6,
+          color: '#ffffff',
+          line: { color: '#00ff88', width: 2 }
+        },
+        hoverinfo: 'x+y+z+name'
+      };
+
+      return [cubeMesh, cubeEdges, cubeCorners];
+    }
+
+    // Box Plot: Per-variable Optimum Box overlay
+    function buildBoxPlotOptOverlay(varNames, opts = {}) {
+      const { showOpt = true, statsMap = window._statsMap, showLabel = true } = opts;
+      if (!showOpt || !varNames || !varNames.length) return { shapes: [], annotations: [] };
+      const shapes = [];
+      const annotations = [];
+      varNames.forEach((v, idx) => {
+        const b = getOptBounds(v, statsMap);
+        if (!b) return;
+        shapes.push({
+          type: 'rect', xref: 'x', yref: 'y',
+          x0: idx - 0.36, x1: idx + 0.36, y0: b.optLow, y1: b.optHigh,
+          fillcolor: 'rgba(0, 255, 136, 0.22)',
+          line: { color: '#00ff88', width: 2.5, dash: 'solid' },
+          layer: 'above'
+        });
+        if (showLabel && idx === 0) {
+          annotations.push({
+            x: idx, y: b.optHigh, xref: 'x', yref: 'y',
+            text: '🎯 Optimum', showarrow: false, yanchor: 'bottom',
+            font: { size: 9, color: '#00ff88', weight: 'bold' },
+            bgcolor: 'rgba(15, 23, 42, 0.90)',
+            bordercolor: '#00ff88', borderwidth: 1.5, borderpad: 2
+          });
+        }
+      });
+      return { shapes, annotations };
+    }
+
     function changePlotType(gd, targetType) {
       const data = gd.data || [];
       if (targetType === 'lines') Plotly.restyle(gd, { mode: data.map(() => 'lines'), type: data.map(() => 'scatter') });
@@ -739,10 +1232,9 @@
         const w = parseInt(el('rollWindow').value) || 1;
         const yRoll = w > 1 ? rollingMean(y, w) : null;
 
-        // Get Stats for Bands
-        const statsRes = await fetch(`${API}/stats`);
-        const statsData = await statsRes.json();
-        const s = (statsData.stats || []).find(item => item.variable === col);
+        // Get Stats for Bands & cache globally
+        const statsMap = await ensureStatsMap(true);
+        const s = statsMap[col];
 
         const traces = [];
         // 1. Raw Data
@@ -750,16 +1242,11 @@
         // 2. Rolling
         if (yRoll) traces.push({ x, y: yRoll, name: `Rolling (${w})`, type: 'scatter', mode: 'lines', line: { color: 'rgb(59, 130, 246)', width: 2 } });
 
-        const shapes = [];
-        // 3. Stable Band (Q1-Q3)
-        if (el('showStable').checked && s?.q1 !== undefined) {
-          shapes.push({ type: 'rect', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: s.q1, y1: s.q3, fillcolor: 'rgba(100, 100, 100, 0.1)', line: { width: 0 }, layer: 'below' });
-        }
-        // 4. Opt Band (Median +- 0.5 IQR)
-        if (el('showOpt').checked && s?.median !== undefined) {
-          const iqr = (s.q3 - s.q1);
-          shapes.push({ type: 'rect', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: s.median - 0.5 * iqr, y1: s.median + 0.5 * iqr, fillcolor: 'rgba(34, 197, 94, 0.15)', line: { width: 0 }, layer: 'below' });
-        }
+        const showStable = el('showStable').checked;
+        const showOpt = el('showOpt').checked;
+
+        // 3 & 4. Stable (Q1-Q3) & Optimum (Median +- 0.5 IQR) Bands + Label
+        const tsOverlay = build1DOptOverlay(col, { axis: 'y', showStable, showOpt, statsMap, showLabel: true });
 
         const layoutTs = { 
           title: { text: `${col} Time-series`, font: { color: '#06b6d4', family: 'Orbitron' } },
@@ -767,19 +1254,26 @@
           yaxis: { title: col, gridcolor: '#1e293b', zerolinecolor: '#1e293b', font: { color: '#f1f5f9' } }, 
           paper_bgcolor: 'rgba(0,0,0,0)',
           plot_bgcolor: 'rgba(0,0,0,0)',
-          shapes 
+          newshape: DEFAULT_NEWSHAPE,
+          shapes: tsOverlay.shapes,
+          annotations: tsOverlay.annotations
         };
         const bounds = getLegendBounds(col);
         if (bounds.hasMin && bounds.hasMax) layoutTs.yaxis.range = [bounds.min, bounds.max];
         Plotly.newPlot('ts', traces, layoutTs, getPlotConfig());
 
+        // Histogram with vertical Stable + Optimum Region Box
+        const histOverlay = build1DOptOverlay(col, { axis: 'x', showStable, showOpt, statsMap, showLabel: true });
         const traceHist = { x: y, type: 'histogram', marker: { color: 'rgba(6, 182, 212, 0.7)' } };
         const layoutHist = {
           title: { text: `${col} Distribution`, font: { color: '#a855f7', family: 'Orbitron' } },
           xaxis: { title: col, gridcolor: '#1e293b', font: { color: '#f1f5f9' } },
           yaxis: { gridcolor: '#1e293b', font: { color: '#f1f5f9' } },
           paper_bgcolor: 'rgba(0,0,0,0)',
-          plot_bgcolor: 'rgba(0,0,0,0)'
+          plot_bgcolor: 'rgba(0,0,0,0)',
+          newshape: DEFAULT_NEWSHAPE,
+          shapes: histOverlay.shapes,
+          annotations: histOverlay.annotations
         };
         Plotly.newPlot('hist', [traceHist], layoutHist, getPlotConfig());
 
@@ -789,10 +1283,27 @@
       }
     }
 
+    function onOptToggleChange(source) {
+      if (source === 'custom') {
+        if (el('showOpt')) el('showOpt').checked = el('showOptCustom').checked;
+        if (el('showStable')) el('showStable').checked = el('showStableCustom').checked;
+      } else {
+        if (el('showOptCustom')) el('showOptCustom').checked = el('showOpt').checked;
+        if (el('showStableCustom')) el('showStableCustom').checked = el('showStable').checked;
+      }
+      updateMainPlots();
+      const cp = el('customPlot');
+      if (cp && cp.data && cp.data.length > 0) {
+        el('btnRenderCustom').click();
+      }
+    }
+
     el('varSelect').addEventListener('change', updateMainPlots);
     el('rollWindow').addEventListener('change', updateMainPlots);
-    el('showStable').addEventListener('change', updateMainPlots);
-    el('showOpt').addEventListener('change', updateMainPlots);
+    el('showStable').addEventListener('change', () => onOptToggleChange('main'));
+    el('showOpt').addEventListener('change', () => onOptToggleChange('main'));
+    if (el('showStableCustom')) el('showStableCustom').addEventListener('change', () => onOptToggleChange('custom'));
+    if (el('showOptCustom')) el('showOptCustom').addEventListener('change', () => onOptToggleChange('custom'));
     el('btnComputeRanges').addEventListener('click', fetchStats);
 
     /* ============================
@@ -970,10 +1481,18 @@
       for (const f of dFiles) { fd.append('files', f); }
 
       try {
-        await fetch(`${API}/upload`, { method: 'POST', body: fd });
+        const upRes = await fetch(`${API}/upload`, { method: 'POST', body: fd });
+        if (!upRes.ok) {
+          const errData = await upRes.json().catch(() => ({}));
+          throw new Error(errData.message || `Upload failed (Status ${upRes.status})`);
+        }
         if (lFile) {
           const fd2 = new FormData(); fd2.append('file', lFile);
-          await fetch(`${API}/upload-legend`, { method: 'POST', body: fd2 });
+          const legRes = await fetch(`${API}/upload-legend`, { method: 'POST', body: fd2 });
+          if (!legRes.ok) {
+            const legErr = await legRes.json().catch(() => ({}));
+            throw new Error(legErr.message || `Legend upload failed (Status ${legRes.status})`);
+          }
         }
 
         updateStatus("Processing...");
@@ -1037,6 +1556,9 @@
     // Individual Grid
     el('btnRenderAll').addEventListener('click', async () => {
       if (!confirm("This will fetch plots for " + (columns.length - 1) + " variables. Continue?")) return;
+      const statsMap = await ensureStatsMap();
+      const showStable = el('showStable').checked;
+      const showOpt = el('showOpt').checked;
       el('individualGrid').innerHTML = "";
       for (const col of columns) {
         if (col === 'timestamp') continue;
@@ -1051,12 +1573,15 @@
           if (!json.data) return;
           const d = json.data;
           const trace = { x: d.timestamp, y: d[col], type: 'scatter', mode: 'lines', line: { color: '#06b6d4', width: 1 } };
+          const indOverlay = build1DOptOverlay(col, { axis: 'y', showStable, showOpt, statsMap, showLabel: false });
           const layout = { 
             margin: { t: 5, b: 5, l: 5, r: 5 }, 
             xaxis: { visible: false }, 
             yaxis: { visible: false },
             paper_bgcolor: 'rgba(0,0,0,0)',
-            plot_bgcolor: 'rgba(0,0,0,0)'
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            newshape: DEFAULT_NEWSHAPE,
+            shapes: indOverlay.shapes
           };
           const bounds = getLegendBounds(col);
           if (bounds.hasMin && bounds.hasMax) layout.yaxis.range = [bounds.min, bounds.max];
@@ -1085,10 +1610,15 @@
       });
 
       try {
-        const res = await fetch(`${API}/plot-data`, { method: 'POST', body: fd });
+        const [res, statsMap] = await Promise.all([
+          fetch(`${API}/plot-data`, { method: 'POST', body: fd }),
+          ensureStatsMap()
+        ]);
         const json = await res.json();
         if (!res.ok) throw new Error(json.message || "Failed to fetch plot data");
         const data = json.data;
+        const showStable = el('showStable').checked;
+        const showOpt = el('showOpt').checked;
         const traces = [];
         const layout = {
           title: { text: `Custom Plot (${type})`, font: { color: '#06b6d4', family: 'Orbitron' } },
@@ -1097,6 +1627,9 @@
           paper_bgcolor: 'rgba(0,0,0,0)',
           plot_bgcolor: 'rgba(0,0,0,0)',
           hovermode: 'closest',
+          newshape: DEFAULT_NEWSHAPE,
+          shapes: [],
+          annotations: [],
           legend: { orientation: 'h', y: -0.2, font: { color: '#f1f5f9' } }
         };
 
@@ -1112,7 +1645,9 @@
         if (type === 'parallel') {
           const dims = ys.map(y => {
             const b = getLegendBounds(y);
-            return { label: y, values: data[y], range: b.hasMin && b.hasMax ? [b.min, b.max] : undefined };
+            const ob = getOptBounds(y, statsMap);
+            const lbl = (showOpt && ob) ? `${y} [Opt: ${fmtNum(ob.optLow)}–${fmtNum(ob.optHigh)}]` : y;
+            return { label: lbl, values: data[y], range: b.hasMin && b.hasMax ? [b.min, b.max] : undefined };
           });
           traces.push({ 
             type: 'parcoords', 
@@ -1130,6 +1665,10 @@
             marker: Object.assign({ size: 3, opacity: 0.7, color: data[colorVar] || 0, colorscale: customColorScale }, colorScaling),
             name: `${ys[0]} vs ${ys[1]}`
           });
+          if (showOpt) {
+            const box3dTraces = build3DOptBoxTraces(x, ys[0], ys[1], statsMap, data);
+            if (box3dTraces && box3dTraces.length) traces.push(...box3dTraces);
+          }
           layout.scene = {
             xaxis: { title: x },
             yaxis: { title: ys[0] },
@@ -1177,6 +1716,34 @@
             // Ensure there's space for the right axis title
             layout.margin = { l: 60, r: 80, t: 50, b: 80 };
           }
+
+          // Optimum / Stable Region Overlays for Custom 2D Plots
+          if (x !== 'timestamp') {
+            // X vs Y scatter/line: draw 2D Stable Box + Optimum Circle/Ellipse
+            const primaryY = ys[0] || rightVar;
+            const ov2d = build2DScatterOptOverlay(x, primaryY, { showStable, showOpt, statsMap, showLabel: true });
+            layout.shapes.push(...ov2d.shapes);
+            layout.annotations.push(...ov2d.annotations);
+          } else {
+            // Time-series / Multi / Dual
+            const plottedVars = [...ys, ...(rightVar ? [rightVar] : [])];
+            if (plottedVars.length === 1) {
+              const axisRef = ys.length ? 'y' : 'y2';
+              const ov1d = build1DOptOverlay(plottedVars[0], { axis: axisRef, showStable, showOpt, statsMap, showLabel: true });
+              layout.shapes.push(...ov1d.shapes);
+              layout.annotations.push(...ov1d.annotations);
+            } else {
+              // Primary Y band + Joint Optimum vertical time windows across all plotted vars
+              if (ys.length) {
+                const ovPrimary = build1DOptOverlay(ys[0], { axis: 'y', showStable, showOpt, statsMap, showLabel: true });
+                layout.shapes.push(...ovPrimary.shapes);
+                layout.annotations.push(...ovPrimary.annotations);
+              }
+              const ovJoint = buildJointOptTimeOverlay(data[x], data, plottedVars, { showOpt, statsMap, showLabel: true });
+              layout.shapes.push(...ovJoint.shapes);
+              layout.annotations.push(...ovJoint.annotations);
+            }
+          }
           
           console.log("Final Traces:", traces);
           console.log("Final Layout:", layout);
@@ -1219,6 +1786,9 @@
     async function fetchStats() {
       const sRes = await fetch(`${API}/stats`); 
       const sData = await sRes.json();
+      const map = {};
+      (sData.stats || []).forEach(s => { map[s.variable] = s; });
+      window._statsMap = map;
       
       // Update Global Dashboard
       const dash = el('insightDashboard');
@@ -1364,11 +1934,16 @@
 
       const makeExportConfig = (label) => ({
         responsive: true, displaylogo: false,
+        edits: { shapePosition: true },
         modeBarButtonsToRemove: ['toImage'],
         modeBarButtonsToAdd: [
+          'drawrect',
+          'drawcircle',
+          'eraseshape',
           { name: 'PNG (white)', title: 'Save PNG (white bg)', icon: Plotly.Icons.camera, click: (gd) => downloadImageWithBg(gd, label, '#ffffff', '#333333') },
           { name: 'PNG (dark)',  title: 'Save PNG (dark bg)',  icon: Plotly.Icons.camera, click: (gd) => downloadImageWithBg(gd, label, '#0f172a', '#e2e8f0') },
-          { name: 'HTML', title: 'Export as standalone HTML', icon: { width:1024, height:1024, path:'M256,128 L768,128 L768,896 L256,896 Z M384,320 L640,320 M384,512 L640,512 M384,704 L512,704' }, click: (gd) => exportPlotHTML(gd, label) }
+          { name: 'HTML', title: 'Export as standalone HTML', icon: { width:1024, height:1024, path:'M256,128 L768,128 L768,896 L256,896 Z M384,320 L640,320 M384,512 L640,512 M384,704 L512,704' }, click: (gd) => exportPlotHTML(gd, label) },
+          { name: 'PPT', title: 'Export this plot as PowerPoint (.pptx)', icon: { width:1024, height:1024, path:'M128,192 L896,192 L896,736 L128,736 Z M320,864 L704,864 M512,736 L512,864 M288,352 L544,352 M288,480 L736,480 M288,608 L640,608' }, click: (gd) => exportSinglePlotPPT(gd, label) }
         ]
       });
 
@@ -1543,17 +2118,28 @@
             if (result.error) { showPlotError(plotEl, result.error, result.missing); continue; }
             const data = result.data;
             const xVals = data['timestamp'] || [];
-            const traces = item.vars.filter(v => data[v]).map((v,i) => ({
+            const activeVars = item.vars.filter(v => data[v]);
+            const traces = activeVars.map((v,i) => ({
               x:xVals, y:data[v], name:v, type:'scatter', mode:'lines', line:{width:1.5, color:CHART_COLORS[i%8]}
             }));
             if (!traces.length) { showPlotError(plotEl, 'No data returned for these variables', item.vars); continue; }
             const shapes = [];
-            for (const v of item.vars) { const b = makeBands(v); if (b.length) { shapes.push(...b); break; } }
+            const annotations = [];
+            for (const v of activeVars) {
+              const ov = build1DOptOverlay(v, { axis: 'y', showStable: true, showOpt: true, statsMap: _aiStatsMap, showLabel: true });
+              if (ov.shapes.length) { shapes.push(...ov.shapes); annotations.push(...ov.annotations); break; }
+            }
+            if (activeVars.length >= 2) {
+              const jointOv = buildJointOptTimeOverlay(xVals, data, activeVars, { showOpt: true, statsMap: _aiStatsMap, showLabel: true });
+              shapes.push(...jointOv.shapes);
+              annotations.push(...jointOv.annotations);
+            }
             Plotly.newPlot(plotEl, traces, {
               margin:{t:28,r:10,b:36,l:56}, paper_bgcolor:'rgba(15,23,42,0)', plot_bgcolor:'rgba(15,23,42,0)',
               font:{color:'#94a3b8',size:10}, xaxis:{gridcolor:'rgba(255,255,255,0.07)',color:'#64748b'},
               yaxis:{gridcolor:'rgba(255,255,255,0.07)',color:'#64748b'},
-              legend:{font:{size:9},orientation:'h',y:-0.18}, showlegend:traces.length>1, shapes
+              legend:{font:{size:9},orientation:'h',y:-0.18}, showlegend:traces.length>1,
+              newshape: DEFAULT_NEWSHAPE, shapes, annotations
             }, cfg);
           }
           else if (item.type === 'dual') {
@@ -1578,7 +2164,10 @@
               ...rightVars.filter(v=>data[v]).map((v,i) => ({ x:xVals, y:data[v], name:v, type:'scatter', mode:'lines', line:{width:1.8,color:c2[i%3],dash:'dot'}, yaxis:'y2' }))
             ];
             if (!traces.length) { showPlotError(plotEl, 'No data for these variables', [...leftVars,...rightVars]); continue; }
-            const shapes = makeBands(leftVars[0] || '', 'y');
+            const ovLeft = build1DOptOverlay(leftVars[0] || '', { axis: 'y', showStable: true, showOpt: true, statsMap: _aiStatsMap, showLabel: true });
+            const ovJoint = buildJointOptTimeOverlay(xVals, data, [...leftVars, ...rightVars], { showOpt: true, statsMap: _aiStatsMap, showLabel: true });
+            const shapes = [...ovLeft.shapes, ...ovJoint.shapes];
+            const annotations = [...ovLeft.annotations, ...ovJoint.annotations];
             const lLabel = leftVars.join(', ') || '—';
             const rLabel = rightVars.join(', ') || '—';
             Plotly.newPlot(plotEl, traces, {
@@ -1586,7 +2175,8 @@
               font:{color:'#94a3b8',size:10}, xaxis:{gridcolor:'rgba(255,255,255,0.07)',color:'#64748b'},
               yaxis:{title:lLabel, gridcolor:'rgba(255,255,255,0.07)', color:'#06b6d4', titlefont:{color:'#06b6d4',size:10}},
               yaxis2:{title:rLabel, overlaying:'y', side:'right', color:'#f59e0b', titlefont:{color:'#f59e0b',size:10}},
-              legend:{font:{size:9},orientation:'h',y:-0.18}, shapes
+              legend:{font:{size:9},orientation:'h',y:-0.18},
+              newshape: DEFAULT_NEWSHAPE, shapes, annotations
             }, cfg);
           }
           else if (item.type === 'parallel') {
@@ -1613,7 +2203,9 @@
             }
             const dimensions = activePvars.map(v => {
               const s = _aiStatsMap[v];
-              const dim = { label: v.replace(/_/g,' '), values: data[v] };
+              const ob = getOptBounds(v, _aiStatsMap);
+              const lbl = ob ? `${v.replace(/_/g,' ')} [${fmtNum(ob.optLow)}–${fmtNum(ob.optHigh)}]` : v.replace(/_/g,' ');
+              const dim = { label: lbl, values: data[v] };
               if (s && s.min != null && s.max != null) dim.range = [s.min, s.max];
               return dim;
             });
@@ -1629,7 +2221,7 @@
               dimensions, labelangle: -25,
               labelfont: { color: '#cbd5e1', size: 9 }
             }], {
-              margin:{t:50,r:90,b:20,l:50}, paper_bgcolor:'rgba(15,23,42,0)', font:{color:'#94a3b8',size:9}
+              margin:{t:55,r:90,b:20,l:50}, paper_bgcolor:'rgba(15,23,42,0)', font:{color:'#94a3b8',size:9}
             }, cfg);
           }
           else if (item.type === 'scatter') {
@@ -1644,7 +2236,8 @@
             const data = result.data;
             const xVals = data[xVar] || [];
             const colorVals = colorVar ? (data[colorVar] || null) : null;
-            const traces = yVars.filter(v => data[v]).map((v, i) => {
+            const activeYVars = yVars.filter(v => data[v]);
+            const traces = activeYVars.map((v, i) => {
               const t = { x:xVals, y:data[v], name:v.replace(/_/g,' '), type:'scatter', mode:'markers',
                 marker:{ size:4, opacity:0.65, color: colorVals && i===0 ? colorVals : CHART_COLORS[i%8] }
               };
@@ -1656,12 +2249,16 @@
               return t;
             });
             if (!traces.length) { showPlotError(plotEl, 'No data for these variables', item.vars); continue; }
+            const ov2d = build2DScatterOptOverlay(xVar, activeYVars[0], { showStable: true, showOpt: true, statsMap: _aiStatsMap, showLabel: true });
             Plotly.newPlot(plotEl, traces, {
               margin:{t:28,r:colorVals?90:20,b:50,l:60}, paper_bgcolor:'rgba(15,23,42,0)', plot_bgcolor:'rgba(15,23,42,0)',
               font:{color:'#94a3b8',size:10},
               xaxis:{title:xVar.replace(/_/g,' '), gridcolor:'rgba(255,255,255,0.07)',color:'#64748b'},
               yaxis:{title:yVars.join(', ').replace(/_/g,' '), gridcolor:'rgba(255,255,255,0.07)',color:'#64748b'},
-              legend:{font:{size:9}}
+              legend:{font:{size:9}},
+              newshape: DEFAULT_NEWSHAPE,
+              shapes: ov2d.shapes,
+              annotations: ov2d.annotations
             }, cfg);
           }
           else if (item.type === 'scatter3d') {
@@ -1675,13 +2272,16 @@
             if (result.error) { showPlotError(plotEl, result.error, result.missing); continue; }
             const data = result.data;
             const colorVals = colorVar ? (data[colorVar] || data[zVar]) : data[zVar];
-            Plotly.newPlot(plotEl, [{
+            const traces3d = [{
               type:'scatter3d', mode:'markers',
               x: data[xVar]||[], y: data[yVar]||[], z: data[zVar]||[],
               marker:{ size:3, color:colorVals, colorscale:scale||'Jet', opacity:0.7, showscale:true,
                 colorbar:{ title:(colorVar||zVar).replace(/_/g,' '), titleside:'right', thickness:12, len:0.6, tickfont:{size:8,color:'#94a3b8'} }
               }
-            }], {
+            }];
+            const box3dTraces = build3DOptBoxTraces(xVar, yVar, zVar, _aiStatsMap, data);
+            if (box3dTraces && box3dTraces.length) traces3d.push(...box3dTraces);
+            Plotly.newPlot(plotEl, traces3d, {
               margin:{t:20,r:20,b:20,l:20}, paper_bgcolor:'rgba(15,23,42,0)',
               scene:{
                 bgcolor:'rgba(15,23,42,0)',
@@ -1690,35 +2290,28 @@
                 zaxis:{title:zVar.replace(/_/g,' '), gridcolor:'#1e293b', color:'#64748b'}
               },
               font:{color:'#94a3b8',size:9}
-            }, {responsive:true, displaylogo:false});
+            }, cfg);
           }
           else if (item.type === 'histogram') {
-            const result = await fetchPlotData('timestamp', item.vars, 5000);
+            let result = await fetchPlotData('timestamp', item.vars, 5000);
+            let activeVars = item.vars;
             if (result.error && result.missing.length) {
-              const goodVars = item.vars.filter(v => !result.missing.includes(v));
-              if (!goodVars.length) { showPlotError(plotEl, result.error, result.missing); continue; }
-              const r2 = await fetchPlotData('timestamp', goodVars, 5000);
-              if (r2.error) { showPlotError(plotEl, r2.error, r2.missing); continue; }
-              const data = r2.data;
-              const traces = goodVars.filter(v => data[v]).map((v, i) => ({
-                x:data[v], name:v.replace(/_/g,' '), type:'histogram', opacity:0.72, marker:{color:CHART_COLORS[i%8]}
-              }));
-              Plotly.newPlot(plotEl, traces, {
-                barmode:'overlay', margin:{t:28,r:10,b:50,l:56}, paper_bgcolor:'rgba(15,23,42,0)', plot_bgcolor:'rgba(15,23,42,0)',
-                font:{color:'#94a3b8',size:10}, xaxis:{gridcolor:'rgba(255,255,255,0.07)',color:'#64748b'},
-                yaxis:{title:'Count', gridcolor:'rgba(255,255,255,0.07)',color:'#64748b'}, legend:{font:{size:9}}
-              }, cfg);
-              continue;
+              activeVars = item.vars.filter(v => !result.missing.includes(v));
+              if (!activeVars.length) { showPlotError(plotEl, result.error, result.missing); continue; }
+              result = await fetchPlotData('timestamp', activeVars, 5000);
             }
             if (result.error) { showPlotError(plotEl, result.error, result.missing); continue; }
             const data = result.data;
-            const traces = item.vars.filter(v => data[v]).map((v, i) => ({
+            const validVars = activeVars.filter(v => data[v]);
+            const traces = validVars.map((v, i) => ({
               x:data[v], name:v.replace(/_/g,' '), type:'histogram', opacity:0.72, marker:{color:CHART_COLORS[i%8]}
             }));
+            const histOv = validVars.length ? build1DOptOverlay(validVars[0], { axis: 'x', showStable: true, showOpt: true, statsMap: _aiStatsMap, showLabel: true }) : { shapes: [], annotations: [] };
             Plotly.newPlot(plotEl, traces, {
               barmode:'overlay', margin:{t:28,r:10,b:50,l:56}, paper_bgcolor:'rgba(15,23,42,0)', plot_bgcolor:'rgba(15,23,42,0)',
               font:{color:'#94a3b8',size:10}, xaxis:{gridcolor:'rgba(255,255,255,0.07)',color:'#64748b'},
-              yaxis:{title:'Count', gridcolor:'rgba(255,255,255,0.07)',color:'#64748b'}, legend:{font:{size:9}}
+              yaxis:{title:'Count', gridcolor:'rgba(255,255,255,0.07)',color:'#64748b'}, legend:{font:{size:9}},
+              newshape: DEFAULT_NEWSHAPE, shapes: histOv.shapes, annotations: histOv.annotations
             }, cfg);
           }
           else if (item.type === 'box') {
@@ -1730,17 +2323,20 @@
             }
             if (result.error) { showPlotError(plotEl, result.error, result.missing); continue; }
             const data = result.data;
-            const traces = item.vars.filter(v => data[v]).map((v, i) => ({
+            const validVars = item.vars.filter(v => data[v]);
+            const traces = validVars.map((v, i) => ({
               y:data[v], name:v.replace(/_/g,' '), type:'box',
               marker:{color:CHART_COLORS[i%8], size:3},
               boxpoints:'outliers', jitter:0.3, line:{width:1.5}
             }));
+            const boxOv = buildBoxPlotOptOverlay(validVars, { showOpt: true, statsMap: _aiStatsMap, showLabel: true });
             Plotly.newPlot(plotEl, traces, {
               margin:{t:28,r:10,b:65,l:56}, paper_bgcolor:'rgba(15,23,42,0)', plot_bgcolor:'rgba(15,23,42,0)',
               font:{color:'#94a3b8',size:10},
               xaxis:{gridcolor:'rgba(255,255,255,0.07)',color:'#64748b',tickangle:-30},
               yaxis:{gridcolor:'rgba(255,255,255,0.07)',color:'#64748b'},
-              legend:{font:{size:9}}
+              legend:{font:{size:9}},
+              newshape: DEFAULT_NEWSHAPE, shapes: boxOv.shapes, annotations: boxOv.annotations
             }, cfg);
           }
         } catch(err) {

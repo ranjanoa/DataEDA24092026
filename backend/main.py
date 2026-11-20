@@ -34,7 +34,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from data_processor import (
     load_data, merge_datasets, calculate_stats, downsample_for_plot, 
     calculate_correlations, parse_legend, filter_columns, 
-    calculate_derived_var, get_stability_bands, process_extra_dataset,
+    calculate_derived_var, resolve_column, get_stability_bands, process_extra_dataset,
     get_dataset_summary, detect_shutdowns
 )
 
@@ -203,14 +203,17 @@ async def add_derived_variable(
     try:
         current_df = calculate_derived_var(current_df, name, formula)
         
-        # Update legend metadata if provided
+        # Update legend metadata if provided, or inherit from source column
         if unit or min_val or max_val:
             if name not in legend_data:
                 legend_data[name] = {}
-            
             if unit: legend_data[name]['Unit'] = unit
             if min_val: legend_data[name]['Scale min'] = min_val
             if max_val: legend_data[name]['Scale max'] = max_val
+        elif name not in legend_data:
+            source_col = resolve_column(formula.strip(), current_df)
+            if source_col and source_col in legend_data:
+                legend_data[name] = dict(legend_data[source_col])
             
         return {"message": f"Variable {name} added", "columns": list(current_df.columns)}
     except Exception as e:
@@ -685,6 +688,87 @@ async def export_pptx(data: dict = Body(...)):
     except Exception as e:
         logging.error(f"PPTX export failed: {e}", exc_info=True)
         return JSONResponse(status_code=500, content={"message": f"PowerPoint export failed: {str(e)}"})
+
+
+@app.post("/export-plot-pptx")
+async def export_plot_pptx(data: dict = Body(...)):
+    """
+    Export one or more individual plots (with their optimum/stable region overlays)
+    directly to a widescreen PowerPoint presentation (.pptx).
+    """
+    try:
+        import base64
+        from pptx import Presentation
+        from pptx.util import Inches, Pt
+        from pptx.dml.color import RGBColor
+
+        plots = data.get("plots")
+        if not plots:
+            plots = [{
+                "title": data.get("title", "DataEDA Plot"),
+                "subtitle": data.get("subtitle", ""),
+                "image_base64": data.get("image_base64", "")
+            }]
+
+        prs = Presentation()
+        prs.slide_width = Inches(13.333)
+        prs.slide_height = Inches(7.5)
+        blank_layout = prs.slide_layouts[6]
+
+        color_bg = RGBColor(15, 23, 42)
+        color_title = RGBColor(255, 255, 0)
+        color_sub = RGBColor(148, 163, 184)
+
+        for item in plots:
+            b64 = item.get("image_base64", "")
+            if not b64:
+                continue
+            if "," in b64:
+                b64 = b64.split(",", 1)[1]
+            img_stream = io.BytesIO(base64.b64decode(b64))
+
+            slide = prs.slides.add_slide(blank_layout)
+            fill = slide.background.fill
+            fill.solid()
+            fill.fore_color.rgb = color_bg
+
+            title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(12.333), Inches(0.7))
+            tf = title_box.text_frame
+            tf.word_wrap = True
+            p = tf.paragraphs[0]
+            p.text = str(item.get("title", "DataEDA Plot"))
+            p.font.name = "Space Grotesk"
+            p.font.size = Pt(22)
+            p.font.bold = True
+            p.font.color.rgb = color_title
+
+            subtitle = item.get("subtitle", "")
+            if subtitle:
+                p_sub = tf.add_paragraph()
+                p_sub.text = str(subtitle)
+                p_sub.font.name = "Outfit"
+                p_sub.font.size = Pt(11)
+                p_sub.font.color.rgb = color_sub
+                p_sub.space_before = Pt(3)
+
+            top_in = Inches(1.25) if subtitle else Inches(1.05)
+            height_in = Inches(5.9) if subtitle else Inches(6.1)
+            slide.shapes.add_picture(img_stream, Inches(0.45), top_in, width=Inches(12.433), height=height_in)
+
+        ppt_stream = io.BytesIO()
+        prs.save(ppt_stream)
+        ppt_stream.seek(0)
+
+        safe_name = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in str(data.get("filename", "DataEDA_Plot"))).strip("_") or "DataEDA_Plot"
+        response = StreamingResponse(
+            ppt_stream,
+            media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        )
+        response.headers["Content-Disposition"] = f"attachment; filename={safe_name}.pptx"
+        return response
+    except Exception as e:
+        logging.error(f"Plot PPTX export failed: {e}", exc_info=True)
+        return JSONResponse(status_code=500, content={"message": f"Plot PowerPoint export failed: {str(e)}"})
 
 
 if __name__ == "__main__":

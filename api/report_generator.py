@@ -10,30 +10,28 @@ def norm_str(s: str) -> str:
     """Normalize string for fuzzy matching (lowercase, alphanumeric only)."""
     return re.sub(r'[^a-z0-9]', '', str(s).lower())
 
+def _get_calculate_derived_var():
+    try:
+        from .data_processor import calculate_derived_var
+        return calculate_derived_var
+    except (ImportError, ValueError):
+        from data_processor import calculate_derived_var
+        return calculate_derived_var
+
 def safe_eval_formula(df: pd.DataFrame, formula: str) -> Optional[pd.Series]:
     """Safely evaluate mathematical formulas across DataFrame columns."""
-    df_cols = list(df.columns)
-    cols_sorted = sorted(df_cols, key=len, reverse=True)
-    temp_formula = formula.strip()
-    env = {}
-    
-    for i, col in enumerate(cols_sorted):
-        if col in temp_formula:
-            token = f"__col_{i}__"
-            temp_formula = temp_formula.replace(col, token)
-            env[token] = pd.to_numeric(df[col], errors='coerce')
-            
     try:
-        allowed_globals = {"np": np, "abs": abs, "min": min, "max": max}
-        res = eval(temp_formula, allowed_globals, env)
-        if isinstance(res, (pd.Series, np.ndarray, list, float, int)):
-            return pd.Series(res, index=df.index)
+        calc_fn = _get_calculate_derived_var()
+        res_df = calc_fn(df, "__temp_eval__", formula)
+        if "__temp_eval__" in res_df.columns:
+            return res_df["__temp_eval__"]
     except Exception as e:
         logger.warning(f"Formula evaluation failed for '{formula}': {e}")
     return None
 
 def parse_and_apply_derived(df: pd.DataFrame, text: str) -> Tuple[pd.DataFrame, List[str]]:
     """Parse [DERIVED: VarName = Formula] tags in text and compute new columns in df."""
+    calc_fn = _get_calculate_derived_var()
     df = df.copy()
     derived_specs = re.findall(r'\[DERIVED:\s*([^\]=]+?)\s*=\s*([^\]]+)\]', text, re.IGNORECASE)
     created_vars = []
@@ -41,17 +39,18 @@ def parse_and_apply_derived(df: pd.DataFrame, text: str) -> Tuple[pd.DataFrame, 
     for var_name, formula in derived_specs:
         var_name = var_name.strip()
         formula = formula.strip()
-        series = safe_eval_formula(df, formula)
-        if series is not None:
-            df[var_name] = series
+        try:
+            df = calc_fn(df, var_name, formula)
             created_vars.append(f"[DERIVED: {var_name} = {formula}]")
             logger.info(f"Derived variable created: {var_name}")
+        except Exception as e:
+            logger.warning(f"Failed to create derived variable {var_name} = {formula}: {e}")
             
     return df, created_vars
 
 def find_best_column_match(col_name: str, available_cols: List[str], fallback_col: Optional[str] = None) -> str:
     """Map a column name from prompt/tag to the best matching column in available_cols."""
-    if not available_cols:
+    if not available_cols or not col_name:
         return col_name
     col_clean = col_name.strip()
     if col_clean in available_cols:
@@ -59,16 +58,22 @@ def find_best_column_match(col_name: str, available_cols: List[str], fallback_co
         
     target_norm = norm_str(col_clean)
     
+    # Exact normalized match
     for c in available_cols:
         if norm_str(c) == target_norm:
             return c
             
-    for c in available_cols:
-        cn = norm_str(c)
-        if target_norm and (target_norm in cn or cn in target_norm):
-            return c
+    # Substring match (require at least 4 characters to avoid false positive short substrings)
+    if len(target_norm) >= 4:
+        for c in available_cols:
+            cn = norm_str(c)
+            if target_norm in cn or cn in target_norm:
+                return c
             
-    return fallback_col if fallback_col in available_cols else available_cols[0]
+    # Fallback to provided fallback or original name (never blindly pick available_cols[0])
+    if fallback_col and fallback_col in available_cols:
+        return fallback_col
+    return col_clean
 
 def compute_stats(df: pd.DataFrame) -> Dict[str, Dict[str, float]]:
     """Compute summary statistics for all numeric columns."""
@@ -232,26 +237,45 @@ def process_prompt_template(df: pd.DataFrame, query_str: str) -> str:
     # 3. Normalize chart tags
     clean_text = normalize_chart_tags(clean_text, num_cols)
     
-    def populate_table_row(line):
-        parts = [p.strip() for p in line.split('|')[1:-1]]
-        if not parts:
-            return line
-        var_candidate = parts[0].replace('**', '').strip()
-        matched_col = find_best_column_match(var_candidate, num_cols, fallback_col=None)
-        if matched_col in stats and len(parts) >= 6:
-            s = stats[matched_col]
-            row_str = f"| {matched_col} | {s['min']:.2f} | {s['q1']:.2f} | {s['median']:.2f} | {s['mean']:.2f} | {s['q3']:.2f} | {s['max']:.2f} |"
-            if len(parts) > 7:
-                row_str += " " + " | ".join(parts[7:]) + " |"
-            return row_str
-        return line
-
+    # 4. Populate table statistics ONLY IF markdown table is an unfilled stats placeholder template
+    # Do NOT modify user-curated tables (e.g. Golden Batch, Operational Corridor, Opportunity Summary)
     lines = clean_text.split('\n')
     new_lines = []
+    current_headers = []
+    
     for line in lines:
-        if line.strip().startswith('|') and not ('---' in line or 'Variable' in line or 'Min' in line or 'Golden' in line):
-            new_lines.append(populate_table_row(line))
+        stripped = line.strip()
+        if stripped.startswith('|') and '|' in stripped[1:]:
+            cells = [c.strip() for c in stripped.split('|')[1:-1]]
+            # Header line
+            if not current_headers and not all(c.startswith('-') for c in cells):
+                current_headers = cells
+                new_lines.append(line)
+                continue
+            # Divider line
+            if all(c.startswith('-') or c.startswith(':') for c in cells):
+                new_lines.append(line)
+                continue
+            
+            # Check if this table is an unfilled statistical quartile template
+            hdr_str = " ".join(current_headers).lower()
+            is_stats_hdr = all(k in hdr_str for k in ['min', 'q1', 'median', 'max'])
+            is_placeholder_row = len(cells) >= 6 and any(c == '' or '{' in c for c in cells[1:6])
+            
+            if is_stats_hdr and is_placeholder_row:
+                var_candidate = cells[0].replace('**', '').strip()
+                matched_col = find_best_column_match(var_candidate, num_cols, fallback_col=None)
+                if matched_col and matched_col in stats:
+                    s = stats[matched_col]
+                    row_str = f"| {matched_col} | {s['min']:.2f} | {s['q1']:.2f} | {s['median']:.2f} | {s['mean']:.2f} | {s['q3']:.2f} | {s['max']:.2f} |"
+                    if len(cells) > 7:
+                        row_str += " " + " | ".join(cells[7:]) + " |"
+                    new_lines.append(row_str)
+                    continue
+            # Otherwise preserve original row completely untouched!
+            new_lines.append(line)
         else:
+            current_headers = []
             new_lines.append(line)
             
     return "\n".join(new_lines)

@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import io
 import logging
+from typing import Optional, List, Dict, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -187,27 +188,81 @@ def filter_columns(df: pd.DataFrame, min_nonzero_pct: float = 0.0) -> pd.DataFra
     return df[keep_cols]
 
 
+def resolve_column(token: str, df: pd.DataFrame) -> Optional[str]:
+    """Resolve a token to an existing column in df using exact, space/underscore, or fuzzy matching."""
+    token_str = str(token).strip()
+    if token_str in df.columns:
+        return token_str
+    
+    t_und = token_str.replace(' ', '_')
+    if t_und in df.columns:
+        return t_und
+        
+    t_spc = token_str.replace('_', ' ')
+    if t_spc in df.columns:
+        return t_spc
+        
+    def norm(s):
+        import re
+        return re.sub(r'[^a-z0-9]', '', str(s).lower())
+        
+    t_norm = norm(token_str)
+    for c in df.columns:
+        if norm(c) == t_norm:
+            return c
+            
+    return None
+
+
 def calculate_derived_var(df: pd.DataFrame, name: str, formula: str) -> pd.DataFrame:
     """
     Add a new column based on a formula with exact and fuzzy column matching.
-    Handles column names with parentheses, hyphens, and spaces cleanly.
+    Handles column aliases, names with parentheses, hyphens, and spaces cleanly.
     """
     import re
     df = df.copy()
+    raw_formula = formula.strip()
+    
+    # 1. Direct single-column match (alias) - check raw first, then unquoted
+    clean_single = re.sub(r'^[`\'"\[]+|[`\'"\]]+$', '', raw_formula).strip()
+    single_match = resolve_column(clean_single, df)
+    if single_match:
+        df[name] = df[single_match].copy()
+        logger.info(f"Derived variable alias created: {name} = {single_match}")
+        return df
+
+    # 2. Expression: strip backticks / brackets around column names
+    temp_formula = re.sub(r'[`\[\]]', '', raw_formula)
+
+    # Expression: build candidate patterns for all df columns
     df_cols = list(df.columns)
-    cols_sorted = sorted(df_cols, key=len, reverse=True)
+    pattern_to_col = {}
+    for col in df_cols:
+        col_str = str(col)
+        pattern_to_col[col_str] = col
+        if '_' in col_str:
+            pattern_to_col[col_str.replace('_', ' ')] = col
+        if ' ' in col_str:
+            pattern_to_col[col_str.replace(' ', '_')] = col
+        if '-' in col_str:
+            pattern_to_col[col_str.replace('-', ' ')] = col
+            pattern_to_col[col_str.replace('-', '')] = col
+            pattern_to_col[col_str.replace('-', '_')] = col
+
+    # Sort patterns by length descending
+    sorted_patterns = sorted(pattern_to_col.keys(), key=len, reverse=True)
     
     env = {}
-    temp_formula = formula.strip()
-    
-    # 1. Match exact columns first (e.g. KILN_FEED_SET_POINT_RF_(Line_A_-_Pen_5))
-    for i, col in enumerate(cols_sorted):
-        if col in temp_formula:
-            token_id = f"__col_{i}__"
-            temp_formula = temp_formula.replace(col, token_id)
+    for pattern in sorted_patterns:
+        col = pattern_to_col[pattern]
+        escaped = re.escape(pattern)
+        regex = rf'(?<![a-zA-Z0-9_]){escaped}(?![a-zA-Z0-9_])'
+        if re.search(regex, temp_formula, flags=re.IGNORECASE):
+            token_id = f"__col_{len(env)}__"
+            temp_formula = re.sub(regex, token_id, temp_formula, flags=re.IGNORECASE)
             env[token_id] = pd.to_numeric(df[col], errors='coerce')
 
-    # 2. Fuzzy match any remaining word tokens if needed
+    # 3. Fuzzy match any remaining word tokens if needed
     if any(c.isalpha() for c in temp_formula if c not in env):
         def norm(s):
             return re.sub(r'[^a-z0-9]', '', str(s).lower())
@@ -225,7 +280,7 @@ def calculate_derived_var(df: pd.DataFrame, name: str, formula: str) -> pd.DataF
                     break
             if matched and matched in df.columns:
                 token_id = f"__col_{len(env)}__"
-                temp_formula = temp_formula.replace(token, token_id)
+                temp_formula = re.sub(rf'(?<![a-zA-Z0-9_]){re.escape(token)}(?![a-zA-Z0-9_])', token_id, temp_formula)
                 env[token_id] = pd.to_numeric(df[matched], errors='coerce')
 
     try:
@@ -235,11 +290,11 @@ def calculate_derived_var(df: pd.DataFrame, name: str, formula: str) -> pd.DataF
             df[name] = pd.Series(res, index=df.index)
             logger.info(f"Successfully calculated derived variable {name} = {formula}")
             return df
+        else:
+            raise ValueError(f"Formula did not evaluate to a series or number: {type(res)}")
     except Exception as err:
         logger.error(f"Error calculating derived var {name} = {formula}: {err}")
         raise ValueError(f"Failed to calculate derived variable '{name}': {err}")
-
-    return df
 
 def process_extra_dataset(
     current_df: pd.DataFrame, 
