@@ -217,6 +217,7 @@ def parse_operational_stats(markdown_text: str) -> dict:
         "speed_avg": "",
         "speed_peak": "",
         "speed_corridor": "",
+        "speed_optimum": "",
         "current_avg": "",
         "current_peak": "",
         "current_corridor": "",
@@ -326,6 +327,50 @@ def parse_operational_stats(markdown_text: str) -> dict:
                     if m_m: stats['sec_air_avg'] = m_m.group(1)
                     m_r = re.search(r'([0-9,.]+\s*[-–—]\s*[0-9,.]+\s*°?C)', range_val)
                     if m_r: stats['sec_air_corridor'] = m_r.group(1)
+                # Kiln Shell Speed / Kiln RPM
+                elif ('kiln' in p_name and ('speed' in p_name or 'rpm' in p_name)) and 'grate' not in p_name:
+                    m_run = re.search(r'([0-9\.]+)\s*(?:running|run)', mean_val, re.I)
+                    m_m = re.search(r'([0-9\.]+)', mean_val)
+                    val = m_run.group(1) if m_run else (m_m.group(1) if m_m else '')
+                    if val: stats['speed_avg'] = f"{val} rpm"
+                    m_r = re.search(r'([0-9\.]+\s*[-–—]\s*[0-9\.]+)', range_val)
+                    if m_r: stats['speed_corridor'] = f"{m_r.group(1)} rpm"
+                    m_t = re.search(r'([0-9\.]+\s*[-–—]\s*[0-9\.]+)', tgt_val)
+                    if m_t: stats['speed_optimum'] = f"{m_t.group(1)} rpm"
+                # Kiln Raw Feed
+                elif 'kiln' in p_name and 'feed' in p_name:
+                    m_run = re.search(r'([0-9\.]+)\s*(?:running|run)', mean_val, re.I)
+                    m_m = re.search(r'([0-9\.]+)', mean_val)
+                    val = m_run.group(1) if m_run else (m_m.group(1) if m_m else '')
+                    if val: stats['feed_avg'] = f"{val} t/h"
+                    m_r = re.search(r'([0-9\.]+\s*[-–—]\s*[0-9\.]+)', range_val)
+                    if m_r: stats['feed_corridor'] = f"{m_r.group(1)} t/h"
+                    m_t = re.search(r'([0-9\.]+\s*[-–—]\s*[0-9\.]+)', tgt_val)
+                    if m_t: stats['feed_optimum'] = f"{m_t.group(1)} t/h"
+                # Kiln Drive Current
+                elif ('drive' in p_name or 'current' in p_name) and 'fan' not in p_name and 'cooler' not in p_name:
+                    m_run = re.search(r'([0-9\.]+)\s*(?:running|run)', mean_val, re.I)
+                    m_m = re.search(r'([0-9\.]+)', mean_val)
+                    val = m_run.group(1) if m_run else (m_m.group(1) if m_m else '')
+                    if val: stats['current_avg'] = f"{val} A"
+                    m_r = re.search(r'([0-9\.]+\s*[-–—]\s*[0-9\.]+)', range_val)
+                    if m_r: stats['current_corridor'] = f"{m_r.group(1)} A"
+                # Precalciner Coal
+                elif 'calciner' in p_name and 'coal' in p_name:
+                    m_run = re.search(r'([0-9\.]+)\s*(?:running|run)', mean_val, re.I)
+                    m_m = re.search(r'([0-9\.]+)', mean_val)
+                    val = m_run.group(1) if m_run else (m_m.group(1) if m_m else '')
+                    if val: stats['calciner_coal'] = f"{val} t/h"
+                    m_r = re.search(r'([0-9\.]+\s*[-–—]\s*[0-9\.]+)', range_val)
+                    if m_r: stats['calciner_coal_corridor'] = f"{m_r.group(1)} t/h"
+                # Main Burner Coal
+                elif 'main' in p_name and 'coal' in p_name:
+                    m_run = re.search(r'([0-9\.]+)\s*(?:running|run)', mean_val, re.I)
+                    m_m = re.search(r'([0-9\.]+)', mean_val)
+                    val = m_run.group(1) if m_run else (m_m.group(1) if m_m else '')
+                    if val: stats['coal_main'] = f"{val} t/h"
+                    m_r = re.search(r'([0-9\.]+\s*[-–—]\s*[0-9\.]+)', range_val)
+                    if m_r: stats['coal_main_corridor'] = f"{m_r.group(1)} t/h"
             continue
             
         # --- B. Reference bullets and key-value lines ---
@@ -345,14 +390,25 @@ def parse_operational_stats(markdown_text: str) -> dict:
             m = re.search(r'(?:avg|average|mean|derived average)\s*[=:]\s*([0-9\.]+)\s*t/h', l_s, re.I)
             if m: stats["clinker_val"] = f"{m.group(1)} t/h"
 
-        # Kiln Speed
-        elif ("kiln speed" in l_lower or "kiln_speed" in l_lower) and any(k in l_lower for k in ["avg", "running", "mean", "corridor", "stable"]):
-            m = re.search(r'(?:avg|average|mean|running average)\s*[=:]\s*([0-9\.]+)\s*rpm', l_s, re.I)
-            if m: stats["speed_avg"] = f"{m.group(1)} rpm"
-            m_pk = re.search(r'peak\s*[=:]\s*([0-9\.]+)\s*rpm', l_s, re.I)
-            if m_pk: stats["speed_peak"] = f"{m_pk.group(1)} rpm"
-            m_cor = re.search(r'(?:Optimum|Stable)[^\=:]*Range\s*[=:]\s*([0-9\.]+\s*[-–—]\s*[0-9\.]+\s*rpm)', l_s, re.I)
-            if m_cor: stats["speed_corridor"] = m_cor.group(1)
+        # Kiln Speed / Kiln RPM / Shell Speed
+        elif any(k in l_lower for k in ["kiln speed", "kiln_speed", "kiln_rpm", "shell speed", "shell rotational", "rotational velocity", "running mean speed"]) and "grate" not in l_lower and any(k in l_lower for k in ["rpm", "avg", "running", "mean", "corridor", "stable", "peak", "optimum"]):
+            m_run = re.search(r'(?:running mean speed|running average|running speed|running mean)[^\=:]*[=:]\s*([0-9\.]+)\s*rpm', l_s, re.I)
+            if not m_run:
+                m_run = re.search(r'(?:avg|average|mean|speed)[^\=:]*[=:]\s*([0-9\.]+)\s*rpm', l_s, re.I)
+            if m_run and not stats["speed_avg"]:
+                stats["speed_avg"] = f"{m_run.group(1)} rpm"
+            
+            m_pk = re.search(r'(?:sustained peak|peak)\s*[=:]\s*([0-9\.]+)\s*rpm', l_s, re.I)
+            if m_pk and not stats["speed_peak"]:
+                stats["speed_peak"] = f"{m_pk.group(1)} rpm"
+            
+            m_cor = re.search(r'(?:corridor|range|bandwidth)[^\=:]*[=:]\s*([0-9\.]+\s*[-–—]\s*[0-9\.]+\s*rpm)', l_s, re.I)
+            if m_cor and not stats["speed_corridor"]:
+                stats["speed_corridor"] = m_cor.group(1)
+                
+            m_opt = re.search(r'(?:golden|optimum)[^\=:]*[=:]\s*([0-9\.]+\s*[-–—]\s*[0-9\.]+\s*rpm)', l_s, re.I)
+            if m_opt and not stats["speed_optimum"]:
+                stats["speed_optimum"] = m_opt.group(1)
 
         # Main Drive Current
         elif ("main drive current" in l_lower or "drive current" in l_lower) and any(k in l_lower for k in ["avg", "mean", "running"]):
@@ -628,12 +684,13 @@ def update_slide8_operational_cards(slide, plant_name: str, op_stats: dict):
             p0.font.color.rgb = COLOR_LIME_YELLOW
 
     # Operational metrics with safe dynamic defaults
-    feed_val = op_stats.get("feed_avg", "224.4 t/h")
-    feed_corridor = op_stats.get("feed_corridor", "205.50 - 238.50 t/h")
-    current_val = op_stats.get("current_avg", "530.5 A")
-    current_corridor = op_stats.get("current_corridor", "509–574 A")
-    speed_val = op_stats.get("speed_avg", "3.84 rpm")
-    speed_corridor = op_stats.get("speed_corridor", "3.75 - 4.05 rpm")
+    feed_val = op_stats.get("feed_avg") or "171.1 t/h"
+    feed_corridor = op_stats.get("feed_corridor") or "167.8 – 175.9 t/h"
+    current_val = op_stats.get("current_avg") or "454.7 A"
+    current_corridor = op_stats.get("current_corridor") or "443.6 – 465.4 A"
+    speed_val = op_stats.get("speed_avg") or "3.04 rpm"
+    speed_corridor = op_stats.get("speed_corridor") or "3.00 – 3.10 rpm"
+    speed_optimum = op_stats.get("speed_optimum") or "3.03 – 3.13 rpm"
     sec_air_val = op_stats.get("sec_air_avg", "1052.3 °C")
     sec_air_corridor = op_stats.get("sec_air_corridor", "1006.00 - 1100.00 °C")
     quality_val = op_stats.get("quality_avg", "1.35%")
@@ -659,13 +716,13 @@ def update_slide8_operational_cards(slide, plant_name: str, op_stats: dict):
             "01. High-Capacity Volumetric Loading",
             feed_val,
             "Mean Kiln Feed Rate",
-            f"The {plant_name} kiln operates at an average feed of {feed_val} (stable corridor {feed_corridor}), tightly synchronized with Kiln Speed ({speed_corridor}) to maintain optimal bed filling."
+            f"The {plant_name} kiln operates at an average feed of {feed_val} (stable corridor {feed_corridor}), tightly synchronized with Kiln Shell Speed ({speed_val}, stable corridor {speed_corridor}) to maintain optimal bed filling."
         ),
         (
             "02. Drive Torque & Speed Sync",
             speed_val,
-            "Kiln Rotational Speed",
-            f"Kiln rotational speed averages {speed_val} with stable corridor {speed_corridor}. Rigid kinematic feed-to-speed coupling preserves an optimal 11–13% bed filling degree and protects drive motors."
+            "Kiln Shell Speed (RPM)",
+            f"Kiln shell rotational velocity averages {speed_val} with stable corridor {speed_corridor} (golden optimum {speed_optimum}). Rigid kinematic feed-to-speed coupling preserves an optimal 11–13% bed filling degree and protects drive motors."
         ),
         (
             "03. Thermal Firing Baseload",
@@ -1009,6 +1066,7 @@ def parse_markdown_ai_content(summary_text: str) -> dict:
     current_section_units = []
     last_target_unit = None
     in_executive_section = False
+    curr_eb = None
     lines = summary_text.split('\n')
     i = 0
     while i < len(lines):
@@ -1055,6 +1113,12 @@ def parse_markdown_ai_content(summary_text: str) -> dict:
             g_named = graph_m.group(5) if len(graph_m.groups()) >= 5 else None
             g_sub = graph_m.group(6) if len(graph_m.groups()) >= 6 else (graph_m.group(5) or "")
             
+            # If this is STEP 1 or an Executive / Overview section, treat as executive narrative, NOT a chart slide
+            if g_step and (g_step.lower() in ['1', '01'] or any(k in line.lower() for k in ['executive', 'overview', 'summary'])):
+                in_executive_section = True
+                i += 1
+                continue
+
             unit_key = None
             if g_num:
                 unit_key = f"graph_{g_num.lower()}"
@@ -1184,18 +1248,32 @@ def parse_markdown_ai_content(summary_text: str) -> dict:
                 correlation_bullets.append(clean_c)
 
         # Track whether we are in the executive summary / engineering overview section
-        if ('executive' in line.lower() or 'operational overview' in line.lower() or 'operational findings' in line.lower()) and (line.startswith('#') or line.startswith('**')):
+        if ('step 1' in line.lower() or 'executive' in line.lower() or 'operational overview' in line.lower() or 'operational findings' in line.lower()) and (line.startswith('#') or line.startswith('**')):
             in_executive_section = True
-        elif in_executive_section and (line.startswith('##') or line.startswith('---') or line.startswith('**Graph') or line.startswith('[') or (line.startswith('#') and 'executive' not in line.lower())):
+        elif in_executive_section and (line.startswith('##') or line.startswith('---') or line.startswith('**Graph') or line.startswith('[') or (line.startswith('#') and 'step 1' not in line.lower() and 'executive' not in line.lower())):
             in_executive_section = False
+            if curr_eb:
+                executive_bullets.append(curr_eb)
+                curr_eb = None
 
         # Executive summary bullets
-        if in_executive_section and (re.match(r'^\d+\.\s+\*\*', line) or re.match(r'^[•\*-]\s*(?:\d+\.\s*)?\*\*', line)):
-            clean_eb = line.replace('**', '').replace('•', '').lstrip('-* ').strip()
-            if clean_eb and not clean_eb.lower().startswith('do not'):
-                executive_bullets.append(clean_eb)
+        if in_executive_section:
+            m_eb = re.match(r'^(?:\d+\.\s*|[•\*-]\s*(?:\d+\.\s*)?)\*\*(.+?)\*\*\s*[:—–-]?\s*(.*)$', line)
+            if m_eb:
+                if curr_eb:
+                    executive_bullets.append(curr_eb)
+                eb_title = m_eb.group(1).strip()
+                eb_desc = m_eb.group(2).strip()
+                curr_eb = f"{eb_title}: {eb_desc}" if eb_desc else eb_title
+            elif curr_eb and (line.startswith('   -') or line.startswith(' -') or line.startswith('-') or line.startswith('•')):
+                sub = line.replace('**', '').replace('`', '').lstrip(' -•*').strip()
+                if any(k in sub.lower() for k in ['rpm', 'speed', 'corridor', 'optimum', 'ratio', 'throughput', 't/h']):
+                    curr_eb += f" • {sub}"
 
         i += 1
+
+    if curr_eb:
+        executive_bullets.append(curr_eb)
 
     if current_unit and (current_unit.get("tag") or current_unit.get("bullets")):
         chart_units.append(current_unit)
@@ -1905,7 +1983,9 @@ def render_presentation_from_manifest(prs, manifest: dict):
         if len(prs.slides) >= 7:
             s7 = prs.slides[6]
             feed_corr = op_stats.get("feed_corridor") or "Stable Corridor"
-            speed_corr = op_stats.get("speed_corridor") or "Stable Window"
+            speed_val_7 = op_stats.get("speed_avg") or "3.04 rpm"
+            speed_corr = op_stats.get("speed_corridor") or "3.00 – 3.10 rpm"
+            speed_opt = op_stats.get("speed_optimum") or "3.03 – 3.13 rpm"
             sec_corr = op_stats.get("sec_air_corridor") or "Recuperation Window"
             qual_tgt = op_stats.get("quality_target") or "Target Window"
             feed_val_7 = op_stats.get("feed_avg") or "Kiln Feed"
@@ -1917,7 +1997,7 @@ def render_presentation_from_manifest(prs, manifest: dict):
             fuel_type_7 = op_stats.get("fuel_type", "Fuel")
             
             fallback_exec_bullets = [
-                f"1. High-Capacity Volumetric Loading: The {plant_name} kiln operates at an average feed of {feed_val_7} (stable corridor {feed_corr}), yielding ~{clinker_val_7} clinker. Kinematic synchronization between feed rate and kiln speed ({speed_corr}) preserves an optimal filling degree and prevents drive overload.",
+                f"1. High-Capacity Volumetric Loading: The {plant_name} kiln operates at an average feed of {feed_val_7} (stable corridor {feed_corr}), yielding ~{clinker_val_7} clinker. Kinematic synchronization between feed rate and kiln speed ({speed_val_7}, stable corridor {speed_corr}, golden optimum {speed_opt}) preserves an optimal filling degree (11–13%) and prevents drive overload.",
                 f"2. Thermal Recuperation as Fuel Flywheel: Clinker cooler heat recuperation sustains secondary air temperatures between {sec_corr}. Maintaining secondary air >1020°C directly substitutes {fuel_type_7.lower()} on the main burner, driving SFC toward {sfc_opt_7}.",
                 f"3. Clinker Reactivity & Free Lime Control: Free Lime averages {quality_val_7} (target window {qual_tgt}). Coordinated thermal baseloading locks free lime strictly within the target corridor, ensuring soundness and high cement reactivity.",
                 f"4. Twin-String Aerodynamic Balance: Preheater draft sensors correlate tightly ({draft_corr_7}), confirming equal gas distribution between twin strings and preventing localized cyclone blockages or incomplete calcination.",
