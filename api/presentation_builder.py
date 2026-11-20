@@ -756,59 +756,49 @@ def update_graph_slide_content(slide, title: str, bullets: list, img_stream: io.
             elif sh.name == "TextBox 3":
                 tb3 = sh
 
-    # If new bullets are provided from AI, update the textframe(s)
-    if bullets and len(bullets) > 0:
-        if tb2 and not tb3:
-            tf = tb2.text_frame
-            tf.clear()
-            p0 = tf.paragraphs[0]
-            p0.text = clean_title(title)
-            p0.font.name = FONT_TITLE
-            p0.font.size = Pt(22)
-            p0.font.bold = True
-            p0.font.color.rgb = COLOR_YELLOW
-            
-            for b in bullets:
-                clean_b = b.strip().replace('**', '').replace('*', '').strip()
-                if not clean_b:
-                    continue
-                p = tf.add_paragraph()
-                p.text = "• " + clean_b.lstrip('-•*').strip()
+    # Clean and filter bullets
+    clean_bullets = []
+    if bullets:
+        for b in bullets:
+            clean_b = b.strip().replace('**', '').replace('*', '').strip()
+            if clean_b and not clean_b.startswith('---'):
+                clean_bullets.append(clean_b.lstrip('-•*').strip())
+
+    # ALWAYS clear and update TextBox 2 (Title) - NEVER leave old template text!
+    if tb2:
+        tf2 = tb2.text_frame
+        tf2.clear()
+        p0 = tf2.paragraphs[0]
+        p0.text = clean_title(title) if title else ""
+        p0.font.name = FONT_TITLE
+        p0.font.size = Pt(22)
+        p0.font.bold = True
+        p0.font.color.rgb = COLOR_YELLOW
+
+        # If tb3 does NOT exist on this slide layout, place bullets in tb2
+        if not tb3 and clean_bullets:
+            for b in clean_bullets:
+                p = tf2.add_paragraph()
+                p.text = "• " + b
                 p.font.name = FONT_BODY
                 p.font.size = Pt(11.5)
                 p.font.bold = False
                 p.font.color.rgb = COLOR_LIGHT_SLATE
                 p.space_before = Pt(4)
-        elif tb2 and tb3:
-            if title and tb2.text_frame.paragraphs:
-                p0 = tb2.text_frame.paragraphs[0]
-                p0.text = clean_title(title)
-                p0.font.name = FONT_TITLE
-                p0.font.size = Pt(22)
-                p0.font.bold = True
-                p0.font.color.rgb = COLOR_YELLOW
-            tf3 = tb3.text_frame
-            tf3.clear()
-            for idx, b in enumerate(bullets):
-                clean_b = b.strip().replace('**', '').replace('*', '').strip()
-                if not clean_b:
-                    continue
+
+    # If tb3 exists on this slide layout, ALWAYS clear and update it
+    if tb3:
+        tf3 = tb3.text_frame
+        tf3.clear()
+        if clean_bullets:
+            for idx, b in enumerate(clean_bullets):
                 p = tf3.paragraphs[0] if idx == 0 else tf3.add_paragraph()
-                p.text = "• " + clean_b.lstrip('-•*').strip()
+                p.text = "• " + b
                 p.font.name = FONT_BODY
                 p.font.size = Pt(11.5)
                 p.font.bold = False
                 p.font.color.rgb = COLOR_LIGHT_SLATE
                 p.space_before = Pt(4)
-    else:
-        # If no new bullets provided, at least ensure title is updated cleanly
-        if tb2 and title and tb2.text_frame.paragraphs:
-            p0 = tb2.text_frame.paragraphs[0]
-            p0.text = clean_title(title)
-            p0.font.name = FONT_TITLE
-            p0.font.size = Pt(22)
-            p0.font.bold = True
-            p0.font.color.rgb = COLOR_YELLOW
 
     # Replace picture shape
     old_pic = None
@@ -1016,26 +1006,42 @@ def parse_markdown_ai_content(summary_text: str) -> dict:
     dataset_overview = parse_dataset_overview(summary_text)
 
     current_unit = None
+    current_section_units = []
+    last_target_unit = None
     in_executive_section = False
     lines = summary_text.split('\n')
     i = 0
     while i < len(lines):
         line = lines[i].strip()
+
+        if line.startswith('#'):
+            current_section_units = []
+            if current_unit and (current_unit.get("tag") or current_unit.get("bullets")):
+                if current_unit not in chart_units:
+                    chart_units.append(current_unit)
+                if current_unit.get("key"):
+                    graphs[current_unit["key"]] = {
+                        "title": current_unit["title"],
+                        "bullets": current_unit["bullets"]
+                    }
+            current_unit = None
+            last_target_unit = None
         
-        # Generic Chart / Graph Header matcher
+        # Generic Chart / Graph Header matcher (supports letters like 2B, 5A, etc.)
         graph_m = re.search(
-            r'^(?:#+\s*)?(?:(?:\d+\.\s*)?\*\*(?:Graph\s*(\d+)|STEP\s*([0-9A-Za-z]+)|(3D\s+[^:\*]+)|(Parallel(?:\s+Plot\s*\d+)?\s*[^:\*]+))\s*[:—–-]?\s*([^\*]+)?\*\*)',
+            r'^(?:#+\s*)?(?:(?:\d+\.\s*)?\*\*(?:Graph\s*([0-9]+[A-Za-z]?)|STEP\s*([0-9A-Za-z]+)|(3D\s+[^:\*]+)|(Parallel(?:\s+Plot\s*\d+)?\s*[^:\*]+))\s*[:—–-]?\s*([^\*]+)?\*\*)',
             line,
             re.IGNORECASE
         )
         if not graph_m:
-            graph_m = re.search(r'^#{2,4}\s*(?:Graph\s*(\d+)|STEP\s*([0-9A-Za-z]+)|(3D\s+[^:]+)|(Parallel(?:\s+Plot\s*\d+)?\s*[^:]+))\s*[:—–-]?\s*(.*)$', line, re.IGNORECASE)
+            graph_m = re.search(r'^#{2,4}\s*(?:Graph\s*([0-9]+[A-Za-z]?)|STEP\s*([0-9A-Za-z]+)|(3D\s+[^:]+)|(Parallel(?:\s+Plot\s*\d+)?\s*[^:]+))\s*[:—–-]?\s*(.*)$', line, re.IGNORECASE)
 
         tag_m = re.search(r'\[(SCATTER|SCATTER3D|DUALPLOT|PARALLEL|HISTOGRAM):([^\]]+)\]', line, re.IGNORECASE)
 
         if graph_m:
             if current_unit and (current_unit.get("tag") or current_unit.get("bullets")):
-                chart_units.append(current_unit)
+                if current_unit not in chart_units:
+                    chart_units.append(current_unit)
                 if current_unit.get("key"):
                     graphs[current_unit["key"]] = {
                         "title": current_unit["title"],
@@ -1051,7 +1057,7 @@ def parse_markdown_ai_content(summary_text: str) -> dict:
             
             unit_key = None
             if g_num:
-                unit_key = f"graph_{g_num}"
+                unit_key = f"graph_{g_num.lower()}"
                 unit_title = f"Graph {g_num}: {g_sub.strip()}" if g_sub and g_sub.strip() else f"Graph {g_num}"
             elif g_step:
                 unit_key = f"step_{g_step.lower()}"
@@ -1075,6 +1081,8 @@ def parse_markdown_ai_content(summary_text: str) -> dict:
                 "variables": [],
                 "bullets": []
             }
+            current_section_units.append(current_unit)
+            last_target_unit = current_unit
             i += 1
             continue
 
@@ -1089,6 +1097,8 @@ def parse_markdown_ai_content(summary_text: str) -> dict:
                     "variables": [],
                     "bullets": []
                 }
+                current_section_units.append(current_unit)
+                last_target_unit = current_unit
             current_unit["tag"] = tag_m.group(0).strip()
             current_unit["tag_type"] = tag_m.group(1).lower()
             vars_raw = re.findall(r'[a-zA-Z0-9_\(\)]+', tag_m.group(2))
@@ -1096,21 +1106,49 @@ def parse_markdown_ai_content(summary_text: str) -> dict:
             i += 1
             continue
 
-        if current_unit and current_unit.get("tag"):
-            if line.startswith('*') or line.startswith('-') or line.startswith('•') or line.lower().startswith('engineering insight'):
-                clean_b = line.replace('**', '').replace('*', '').strip()
-                if clean_b and not clean_b.startswith('---'):
-                    current_unit["bullets"].append(clean_b)
-            elif line.startswith('#'):
-                chart_units.append(current_unit)
-                if current_unit.get("key"):
-                    graphs[current_unit["key"]] = {
-                        "title": current_unit["title"],
-                        "bullets": current_unit["bullets"]
-                    }
-                current_unit = None
-            elif current_unit["bullets"] and line and not line.startswith('[') and not line.startswith('|') and not line.startswith('---'):
-                current_unit["bullets"][-1] += " " + line.replace('**', '').replace('*', '').strip()
+        # Bullet parser supporting multi-graph sections and explicit graph routing
+        if line.startswith('*') or line.startswith('-') or line.startswith('•') or line.lower().startswith('engineering insight'):
+            clean_b = line.replace('**', '').replace('*', '').strip()
+            if clean_b and not clean_b.startswith('---'):
+                target = None
+                # 1. Exact Graph mention (e.g. Graph 1, Graph 2, Graph 2B)
+                m_g = re.search(r'\bGraph\s*([0-9]+[A-Za-z]?)\b', clean_b, re.I)
+                if m_g:
+                    g_target = m_g.group(1).lower()
+                    for u in current_section_units or chart_units:
+                        if (u.get('graph_num') or '').lower() == g_target:
+                            target = u
+                            break
+                # 2. Variable overlap with units in current section
+                if not target and current_section_units:
+                    b_words = set(re.findall(r'[a-zA-Z0-9_]{3,}', clean_b.lower()))
+                    best_score = 0
+                    for u in current_section_units:
+                        u_vars = set(u.get('variables', []))
+                        overlap = len(b_words.intersection(u_vars))
+                        if overlap > best_score or (overlap == best_score and overlap > 0 and target and len(u['bullets']) < len(target['bullets'])):
+                            best_score = overlap
+                            target = u
+                # 3. Fallback to empty unit in current section
+                if not target and current_section_units:
+                    for u in current_section_units:
+                        if len(u['bullets']) == 0:
+                            target = u
+                            break
+                if not target:
+                    target = last_target_unit or current_unit
+
+                if target:
+                    target['bullets'].append(clean_b)
+                    last_target_unit = target
+                    if target.get("key"):
+                        graphs[target["key"]] = {
+                            "title": target["title"],
+                            "bullets": target["bullets"]
+                        }
+
+        elif last_target_unit and last_target_unit['bullets'] and line and not line.startswith('[') and not line.startswith('|') and not line.startswith('---'):
+            last_target_unit['bullets'][-1] += " " + line.replace('**', '').replace('*', '').strip()
 
         # Generic Table Matcher
         if line.startswith('|') and '|' in line[1:]:
@@ -1204,12 +1242,14 @@ def scrub_residual_plant_names(prs_obj, target_plant: str, op_stats: dict = None
         ("SPCC", target_plant),
         ("Bursa_Cimento_Optimized.xlsx", f"{short_target}_Process_Telemetry.csv"),
         ("Pyro_minute_data_grouped_final_with_lab.csv", f"{short_target}_Pyro_Telemetry.csv"),
+        ("370 t/h", op_stats.get("feed_avg", "nominal throughput") if op_stats else "nominal throughput"),
+        ("370t/h", op_stats.get("feed_avg", "nominal throughput") if op_stats else "nominal throughput"),
     ]
 
     if op_stats:
         feed_str = op_stats.get("feed_avg")
         if feed_str and feed_str != "598.8 t/h":
-            replacements.extend([("598.8 t/h", feed_str), ("340.9 t/h", feed_str)])
+            replacements.extend([("598.8 t/h", feed_str), ("340.9 t/h", feed_str), ("370 t/h", feed_str), ("370t/h", feed_str)])
         clinker_str = op_stats.get("clinker_val")
         if clinker_str and clinker_str != "386.3 t/h":
             replacements.extend([("386.3 t/h", clinker_str)])
@@ -1285,8 +1325,8 @@ def compile_presentation_manifest(prs, data: dict) -> dict:
     """
     Phase 1 (Option B): Compiles a structured, slide-by-slide Manifest with Double Verification.
     """
-    ai_summary = data.get("ai_summary", "")
-    ai_charts = data.get("ai_charts", [])
+    ai_summary = data.get("ai_summary") or data.get("summary") or ""
+    ai_charts = data.get("ai_charts") or data.get("charts") or []
     
     parsed_content = parse_markdown_ai_content(ai_summary)
     plant_name = data.get("plant_name") or parsed_content.get("plant_name") or "Plant Operations"
