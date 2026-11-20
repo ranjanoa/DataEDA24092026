@@ -245,15 +245,15 @@ def parse_operational_stats(markdown_text: str) -> dict:
         "inlet_o2": "",
         "duct1_temp": "",
         "duct2_temp": "",
-        "draft_corr": "+0.992",
-        "id_fan_corr": "+0.999",
-        "cooler_bed_corr": "+0.991",
-        "fan_corr": "+0.991",
-        "feed_speed_corr": "+0.939",
-        "calciner_speed_corr": "+0.902",
-        "calciner_feed_corr": "+0.861",
-        "drive_coal_corr": "+0.867",
-        "recup_corr": "+0.880",
+        "draft_corr": "",
+        "id_fan_corr": "",
+        "cooler_bed_corr": "",
+        "fan_corr": "",
+        "feed_speed_corr": "",
+        "calciner_speed_corr": "",
+        "calciner_feed_corr": "",
+        "drive_coal_corr": "",
+        "recup_corr": "",
         "sintering_temp_avg": "",
         "sintering_temp_corridor": "",
         "sintering_temp_target": "",
@@ -386,6 +386,33 @@ def parse_operational_stats(markdown_text: str) -> dict:
             continue
             
         # --- B. Reference bullets and key-value lines ---
+        # Cross-Correlation lines (Checked FIRST so "Var vs Var" lines are never intercepted by metric parsers)
+        if " vs " in l_lower or " vs. " in l_lower:
+            corr_m = re.search(r'[`*]*([a-zA-Z0-9_\-]+)[`*]*\s+vs\.?\s+[`*]*([a-zA-Z0-9_\-]+)[`*]*\s*[:—–-]\s*[`*]*([+\-]?[0-9]\.[0-9]{2,4})[`*]*', l_s)
+            if corr_m:
+                v1, v2, coeff = corr_m.group(1).lower(), corr_m.group(2).lower(), corr_m.group(3)
+                pair = f"{v1} {v2}"
+                if 'feed' in pair and ('rpm' in pair or 'speed' in pair):
+                    stats["feed_speed_corr"] = coeff
+                elif ('pre-heater' in v1 or 'preheater' in v1 or 'string' in v1) and ('pre-heater' in v2 or 'preheater' in v2 or 'string' in v2) and 'fan' not in pair:
+                    stats["draft_corr"] = coeff
+                elif ('pre-heater' in pair or 'preheater' in pair or 'draft' in pair) and 'fan' in pair:
+                    if not stats["id_fan_corr"]:
+                        stats["id_fan_corr"] = coeff
+                elif ('chamber' in pair or 'grate' in pair or 'cooler' in pair) and ('pressure' in pair or 'speed' in pair or 'current' in pair):
+                    if not stats["cooler_bed_corr"]:
+                        stats["cooler_bed_corr"] = coeff
+                    stats["fan_corr"] = coeff
+                elif 'calciner' in pair and ('rpm' in pair or 'speed' in pair):
+                    stats["calciner_speed_corr"] = coeff
+                elif 'calciner' in pair and 'feed' in pair:
+                    stats["calciner_feed_corr"] = coeff
+                elif ('drive' in pair or 'current' in pair or 'torque' in pair) and ('coal' in pair or 'fuel' in pair or 'burner' in pair):
+                    stats["drive_coal_corr"] = coeff
+                elif 'secondary' in pair and 'tertiary' in pair:
+                    stats["recup_corr"] = coeff
+            continue
+
         # Kiln Feed
         if ("kiln feed" in l_lower or "kiln_feed" in l_lower) and any(k in l_lower for k in ["avg", "running", "mean", "corridor", "stable"]):
             m = re.search(r'(?:avg|average|mean|running average)\s*[=:]\s*([0-9\.]+)\s*t/h', l_s, re.I)
@@ -530,8 +557,8 @@ def parse_operational_stats(markdown_text: str) -> dict:
             m_tgt = re.search(r'(?:Target|Golden Target|Golden Optimum)\s*[=:]\s*([0-9\.]+\s*[-–—]\s*[0-9\.]+\s*kcal/kg)', l_s, re.I)
             if m_tgt: stats["sfc_optimum"] = m_tgt.group(1)
 
-        # Sintering Zone Temp
-        elif "sintering_zone_temperature" in l_lower or "sintering zone temp" in l_lower or "sintering temp" in l_lower:
+        # Sintering / Burning Zone Pyrometry Temperature
+        elif ("sintering" in l_lower or "burning zone" in l_lower or "pyrometer" in l_lower) and ("temp" in l_lower or "°c" in l_lower):
             m_run = re.search(r'(?:running average|running mean|average|mean)\s*[=:]\s*([0-9,.]+)\s*°?C', l_s, re.I)
             if m_run: stats["sintering_temp_avg"] = f"{m_run.group(1)} °C"
             m_cor = re.search(r'(?:stable range|corridor)\s*[^\=:]*[=:]\s*([0-9,.]+\s*[-–—]\s*[0-9,.]+\s*°?C)', l_s, re.I)
@@ -539,36 +566,14 @@ def parse_operational_stats(markdown_text: str) -> dict:
             m_tgt = re.search(r'(?:target|golden)[^\=:]*[=:]\s*([0-9,.]+\s*[-–—]\s*[0-9,.]+\s*°?C)', l_s, re.I)
             if m_tgt: stats["sintering_temp_target"] = m_tgt.group(1)
 
-        # Chamber Pressures
-        elif "chamber_pressure_2" in l_lower:
+        # Cooler Undergrate / Chamber Pressures (generic detection of cooler pressure zones)
+        elif ("chamber" in l_lower or "undergrate" in l_lower or "grate" in l_lower) and "pressure" in l_lower and "mbar" in l_lower:
             m = re.search(r'(?:running average|average|mean)\s*[=:]\s*([0-9\.]+)\s*mbar', l_s, re.I)
-            if m: stats["chamber2_avg"] = f"{m.group(1)} mbar"
-        elif "chamber_pressure_3" in l_lower:
-            m = re.search(r'(?:running average|average|mean)\s*[=:]\s*([0-9\.]+)\s*mbar', l_s, re.I)
-            if m: stats["chamber3_avg"] = f"{m.group(1)} mbar"
-
-        # Cross-Correlation lines
-        elif " vs " in l_lower or " vs. " in l_lower:
-            corr_m = re.search(r'[`\*]?([a-zA-Z0-9_\-]+)[`\*]?\s+vs\.?\s+[`\*]?([a-zA-Z0-9_\-]+)[`\*]?\s*[:—–-]\s*[*`]*([+\-][0-9]\.[0-9]{2,4})[*`]*', l_s)
-            if corr_m:
-                v1, v2, coeff = corr_m.group(1).lower(), corr_m.group(2).lower(), corr_m.group(3)
-                if ('feed' in v1 and 'rpm' in v2) or ('rpm' in v1 and 'feed' in v2) or ('speed' in v1 and 'feed' in v2):
-                    stats["feed_speed_corr"] = coeff
-                elif ('pre-heater1' in v1 and 'pre-heater2' in v2) or ('string 1' in v1 and 'string 2' in v2):
-                    stats["draft_corr"] = coeff
-                elif ('pre-heater1' in v1 and 'fan' in v2) or ('pre-heater' in v1 and 'fan' in v2 and not stats["id_fan_corr"]):
-                    stats["id_fan_corr"] = coeff
-                elif ('chamber_pressure_2' in v1 and 'chamber_pressure_3' in v2) or ('chamber 2' in v1 and 'chamber 3' in v2):
-                    stats["cooler_bed_corr"] = coeff
-                    stats["fan_corr"] = coeff
-                elif ('calciner' in v1 and 'rpm' in v2) or ('rpm' in v1 and 'calciner' in v2):
-                    stats["calciner_speed_corr"] = coeff
-                elif ('calciner' in v1 and 'feed' in v2) or ('feed' in v1 and 'calciner' in v2):
-                    stats["calciner_feed_corr"] = coeff
-                elif ('drive' in v1 and 'coal' in v2) or ('current' in v1 and 'coal' in v2):
-                    stats["drive_coal_corr"] = coeff
-                elif ('secondary' in v1 and 'tertiary' in v2) or ('tertiary' in v1 and 'secondary' in v2):
-                    stats["recup_corr"] = coeff
+            if m:
+                if not stats["chamber2_avg"]:
+                    stats["chamber2_avg"] = f"{m.group(1)} mbar"
+                elif not stats["chamber3_avg"]:
+                    stats["chamber3_avg"] = f"{m.group(1)} mbar"
 
     # Derived clinker production if not explicitly given
     if not stats["clinker_val"] and stats["feed_avg"]:
@@ -599,38 +604,39 @@ def parse_operational_stats(markdown_text: str) -> dict:
 def update_deck_speaker_notes(prs, plant_name: str, dataset_name: str, ds_info: dict, op_stats: dict):
     """
     Dynamically generates and updates speaker notes for Slides 1-8 based on active plant telemetry.
+    Zero hardcoded numerical values: all metrics come directly from parsed prompt statistics.
     """
-    feed_val = op_stats.get("feed_avg", "224.4 t/h")
-    feed_pk = op_stats.get("feed_peak", "247.0 t/h")
-    feed_cor = op_stats.get("feed_corridor", "205.50 - 238.50 t/h")
-    clinker_val = op_stats.get("clinker_val", "144.8 t/h")
-    current_val = op_stats.get("current_avg", "530.5 A")
-    current_cor = op_stats.get("current_corridor", "509.00 - 574.00 A")
-    speed_val = op_stats.get("speed_avg", "3.84 rpm")
-    speed_cor = op_stats.get("speed_corridor", "3.75 - 4.05 rpm")
-    speed_optimum = op_stats.get("speed_optimum", "3.03 – 3.13 rpm")
-    sec_air_val = op_stats.get("sec_air_avg", "1052.3 °C")
-    sec_air_cor = op_stats.get("sec_air_corridor", "1006.00 - 1100.00 °C")
-    quality_val = op_stats.get("quality_avg", "1.35%")
-    quality_tgt = op_stats.get("quality_target", "0.80 - 1.40%")
-    fuel_type = op_stats.get("fuel_type", "Coal")
-    fuel_label = op_stats.get("fuel_label", "Total Coal Rate")
-    fuel_val = op_stats.get("fuel_avg", "12.69 t/h")
-    coal_main = op_stats.get("coal_main", "4.89 t/h")
-    calciner_coal = op_stats.get("calciner_coal", "7.80 t/h")
-    oil_main = op_stats.get("oil_main", "10,474 kg/h")
-    calciner_oil = op_stats.get("calciner_oil", "~19.81 t/h")
-    sfc_optimum = op_stats.get("sfc_optimum", "720.0 - 735.0 kcal/kg")
-    draft_corr = op_stats.get("draft_corr", "+0.992")
-    cooler_bed_corr = op_stats.get("cooler_bed_corr", "+0.991")
-    feed_speed_corr = op_stats.get("feed_speed_corr", "+0.939")
-    id_fan_corr = op_stats.get("id_fan_corr", "+0.999")
-    fan_corr = op_stats.get("fan_corr", "+0.991")
+    feed_val = op_stats.get("feed_avg") or "nominal feed rate"
+    feed_pk = op_stats.get("feed_peak") or "peak throughput"
+    feed_cor = op_stats.get("feed_corridor") or "the stable feed corridor"
+    clinker_val = op_stats.get("clinker_val") or "derived clinker output"
+    current_val = op_stats.get("current_avg") or "nominal drive current"
+    current_cor = op_stats.get("current_corridor") or "the stable amperage window"
+    speed_val = op_stats.get("speed_avg") or "nominal rotational speed"
+    speed_cor = op_stats.get("speed_corridor") or "the stable speed corridor"
+    speed_optimum = op_stats.get("speed_optimum") or "the golden optimum window"
+    sec_air_val = op_stats.get("sec_air_avg") or "nominal secondary air temperature"
+    sec_air_cor = op_stats.get("sec_air_corridor") or "the recuperation corridor"
+    quality_val = op_stats.get("quality_avg") or op_stats.get("sintering_temp_avg") or "target quality levels"
+    quality_tgt = op_stats.get("quality_target") or op_stats.get("sintering_temp_target") or "the golden target window"
+    fuel_type = op_stats.get("fuel_type") or "Fuel"
+    fuel_label = op_stats.get("fuel_label") or "Total Fuel Rate"
+    fuel_val = op_stats.get("fuel_avg") or "nominal fuel flow"
+    coal_main = op_stats.get("coal_main") or "main burner coal"
+    calciner_coal = op_stats.get("calciner_coal") or "calciner coal"
+    oil_main = op_stats.get("oil_main") or "main burner fuel"
+    calciner_oil = op_stats.get("calciner_oil") or "calciner fuel"
+    sfc_optimum = op_stats.get("sfc_optimum") or "the Golden Batch SFC window"
+    draft_corr = op_stats.get("draft_corr") or "high positive"
+    cooler_bed_corr = op_stats.get("cooler_bed_corr") or op_stats.get("fan_corr") or "strong positive"
+    feed_speed_corr = op_stats.get("feed_speed_corr") or "strong positive"
+    id_fan_corr = op_stats.get("id_fan_corr") or "tight"
+    fan_corr = op_stats.get("fan_corr") or cooler_bed_corr
 
-    rec_cnt = ds_info.get("records_count", "99,240 Records")
-    dur_val = ds_info.get("duration", "69 Days Timeline")
-    avail_val = ds_info.get("availability", "82.1% Availability")
-    res_val = ds_info.get("resolution", "Exactly 60s")
+    rec_cnt = ds_info.get("records_count") or "continuous operational records"
+    dur_val = ds_info.get("duration") or "the campaign timeline"
+    avail_val = ds_info.get("availability") or "high plant availability"
+    res_val = ds_info.get("resolution") or "continuous logging"
 
     fuel_speech = f"total coal consumption averages {fuel_val}, with {coal_main} on the main burner and {calciner_coal} in the calciner" if fuel_type == "Coal" else f"total fuel consumption averages {fuel_val}, with {oil_main} on the main burner and {calciner_oil} across calciners"
 
@@ -731,46 +737,46 @@ def update_slide8_operational_cards(slide, plant_name: str, op_stats: dict):
             p0.font.bold = True
             p0.font.color.rgb = COLOR_LIME_YELLOW
 
-    # Operational metrics with safe dynamic defaults
-    feed_val = op_stats.get("feed_avg") or "171.1 t/h"
-    feed_corridor = op_stats.get("feed_corridor") or "167.8 – 175.9 t/h"
-    current_val = op_stats.get("current_avg") or "454.7 A"
-    current_corridor = op_stats.get("current_corridor") or "443.0 – 462.0 A"
-    speed_val = op_stats.get("speed_avg") or "3.04 rpm"
-    speed_corridor = op_stats.get("speed_corridor") or "3.00 – 3.10 rpm"
-    speed_optimum = op_stats.get("speed_optimum") or "3.03 – 3.13 rpm"
-    sec_air_val = op_stats.get("sec_air_avg", "1,002.5 °C")
-    sec_air_corridor = op_stats.get("sec_air_corridor", "980.9 – 1,031.0 °C")
-    quality_val = op_stats.get("quality_avg", "")
-    quality_corridor = op_stats.get("quality_corridor", "")
-    quality_target = op_stats.get("quality_target", "")
-    fuel_type = op_stats.get("fuel_type", "Coal")
-    fuel_label = op_stats.get("fuel_label", "Total Coal Rate")
-    fuel_val = op_stats.get("fuel_avg", "13.77 t/h")
-    oil_main = op_stats.get("oil_main", "10,474 kg/h")
-    calciner_oil = op_stats.get("calciner_oil", "~19.81 t/h")
-    coal_main = op_stats.get("coal_main", "5.43 t/h")
-    calciner_coal = op_stats.get("calciner_coal", "8.34 t/h")
-    sfc_baseline = op_stats.get("sfc_baseline") or "748.0 kcal/kg"
-    sfc_optimum = op_stats.get("sfc_optimum") or "725.0 – 735.0 kcal/kg"
-    draft_corr = op_stats.get("draft_corr") or "+0.992"
-    id_fan_corr = op_stats.get("id_fan_corr") or "+0.999"
-    cooler_bed_corr = op_stats.get("cooler_bed_corr") or "+0.991"
-    fan_corr = op_stats.get("fan_corr") or "+0.991"
-    feed_speed_corr = op_stats.get("feed_speed_corr") or "+0.939"
-    sintering_temp_avg = op_stats.get("sintering_temp_avg") or "1,261.1 °C"
-    sintering_temp_corridor = op_stats.get("sintering_temp_corridor") or "1,226.3 – 1,297.4 °C"
-    sintering_temp_target = op_stats.get("sintering_temp_target") or "1,226.2 – 1,297.3 °C"
-    chamber2_avg = op_stats.get("chamber2_avg") or "62.3 mbar"
-    chamber3_avg = op_stats.get("chamber3_avg") or "62.5 mbar"
+    # Operational metrics parsed strictly from prompt (ZERO hardcoded numbers)
+    feed_val = op_stats.get("feed_avg") or "N/A"
+    feed_corridor = op_stats.get("feed_corridor") or "stable corridor"
+    current_val = op_stats.get("current_avg") or "N/A"
+    current_corridor = op_stats.get("current_corridor") or "stable corridor"
+    speed_val = op_stats.get("speed_avg") or "N/A"
+    speed_corridor = op_stats.get("speed_corridor") or "stable corridor"
+    speed_optimum = op_stats.get("speed_optimum") or "golden optimum"
+    sec_air_val = op_stats.get("sec_air_avg") or "N/A"
+    sec_air_corridor = op_stats.get("sec_air_corridor") or "stable corridor"
+    quality_val = op_stats.get("quality_avg") or ""
+    quality_corridor = op_stats.get("quality_corridor") or "stable range"
+    quality_target = op_stats.get("quality_target") or "target window"
+    fuel_type = op_stats.get("fuel_type") or "Fuel"
+    fuel_label = op_stats.get("fuel_label") or "Total Fuel Rate"
+    fuel_val = op_stats.get("fuel_avg") or "N/A"
+    oil_main = op_stats.get("oil_main") or "main burner"
+    calciner_oil = op_stats.get("calciner_oil") or "calciner"
+    coal_main = op_stats.get("coal_main") or "main burner"
+    calciner_coal = op_stats.get("calciner_coal") or "calciner"
+    sfc_baseline = op_stats.get("sfc_baseline") or "N/A"
+    sfc_optimum = op_stats.get("sfc_optimum") or "target corridor"
+    draft_corr = op_stats.get("draft_corr") or "N/A"
+    id_fan_corr = op_stats.get("id_fan_corr") or ""
+    cooler_bed_corr = op_stats.get("cooler_bed_corr") or op_stats.get("fan_corr") or "N/A"
+    fan_corr = op_stats.get("fan_corr") or cooler_bed_corr
+    feed_speed_corr = op_stats.get("feed_speed_corr") or ""
+    sintering_temp_avg = op_stats.get("sintering_temp_avg") or "N/A"
+    sintering_temp_corridor = op_stats.get("sintering_temp_corridor") or "stable corridor"
+    sintering_temp_target = op_stats.get("sintering_temp_target") or "target window"
+    chamber2_avg = op_stats.get("chamber2_avg") or ""
+    chamber3_avg = op_stats.get("chamber3_avg") or ""
 
     main_fuel_desc = f"{coal_main} coal" if fuel_type == "Coal" else f"{oil_main} fuel"
-    calciner_fuel_desc = f"{calciner_coal} coal" if fuel_type == "Coal" else f"{calciner_oil} across twin calciners"
+    calciner_fuel_desc = f"{calciner_coal} coal" if fuel_type == "Coal" else f"{calciner_oil} across calciners"
 
     sfc_m = re.search(r'([0-9\.]+)', sfc_baseline)
     sfc_big = f"{sfc_m.group(1)} kcal/kg" if sfc_m else sfc_baseline
 
-    if quality_val and quality_val != "1.35%":
+    if quality_val:
         c7_title = "07. Clinker Quality Optimization"
         c7_big = quality_val
         c7_lbl = "Mean Free Lime (fCaO)"
@@ -781,18 +787,23 @@ def update_slide8_operational_cards(slide, plant_name: str, op_stats: dict):
         c7_lbl = "Sintering Pyrometer Temp"
         c7_desc = f"Sintering pyrometer temperature averages {sintering_temp_avg} (stable corridor {sintering_temp_corridor}; target {sintering_temp_target}), providing real-time optical thermal feedback for clinker mineral phase nodulization."
 
+    corr_str_1 = f", r = {feed_speed_corr}" if feed_speed_corr else ""
+    corr_str_2 = f" (r = {feed_speed_corr})" if feed_speed_corr else ""
+    id_fan_str = f" (and {id_fan_corr} with ID Fan)" if id_fan_corr else ""
+    ch_str = f" between Chamber 2 ({chamber2_avg}) and Chamber 3 ({chamber3_avg}) undergrate pressures" if (chamber2_avg and chamber3_avg) else " across undergrate chamber pressures"
+
     card_definitions = [
         (
             "01. High-Capacity Volumetric Loading",
             feed_val,
             "Mean Kiln Feed Rate",
-            f"The {plant_name} kiln operates at an average feed of {feed_val} (stable corridor {feed_corridor}), tightly synchronized with Kiln Shell Speed ({speed_val}, stable corridor {speed_corridor}, r = {feed_speed_corr}) to maintain optimal bed filling."
+            f"The {plant_name} kiln operates at an average feed of {feed_val} (stable corridor {feed_corridor}), tightly synchronized with Kiln Shell Speed ({speed_val}, stable corridor {speed_corridor}{corr_str_1}) to maintain optimal bed filling."
         ),
         (
             "02. Drive Torque & Speed Sync",
             speed_val,
             "Kiln Shell Speed (RPM)",
-            f"Kiln shell rotational velocity averages {speed_val} with stable corridor {speed_corridor} (golden optimum {speed_optimum}). Rigid kinematic feed-to-speed coupling (r = {feed_speed_corr}) preserves an optimal 11–13% bed filling degree and protects drive motors."
+            f"Kiln shell rotational velocity averages {speed_val} with stable corridor {speed_corridor} (golden optimum {speed_optimum}). Rigid kinematic feed-to-speed coupling{corr_str_2} preserves an optimal 11–13% bed filling degree and protects drive motors."
         ),
         (
             "03. Thermal Firing Baseload",
@@ -810,7 +821,7 @@ def update_slide8_operational_cards(slide, plant_name: str, op_stats: dict):
             "05. Aerodynamic Draft Symmetry",
             draft_corr,
             "Preheater Tower Balance",
-            f"Near-perfect {draft_corr} correlation between String 1 and String 2 draft (and {id_fan_corr} with ID Fan) confirms impeccable twin-tower balance with zero cyclone blockages or unequal gas split."
+            f"Near-perfect {draft_corr} correlation between String 1 and String 2 draft{id_fan_str} confirms impeccable twin-tower balance with zero cyclone blockages or unequal gas split."
         ),
         (
             "06. Clinker Heat Recuperation",
@@ -828,7 +839,7 @@ def update_slide8_operational_cards(slide, plant_name: str, op_stats: dict):
             "08. Cooler Hydraulic Continuity",
             cooler_bed_corr,
             "Undergrate Chamber Continuity",
-            f"Near-perfect correlation ({cooler_bed_corr}) between Chamber 2 ({chamber2_avg}) and Chamber 3 ({chamber3_avg}) undergrate pressures confirms uniform clinker bed permeability and optimal heat recuperation."
+            f"Near-perfect correlation ({cooler_bed_corr}){ch_str} confirms uniform clinker bed permeability and optimal heat recuperation."
         )
     ]
 
@@ -1350,18 +1361,14 @@ def parse_markdown_ai_content(summary_text: str) -> dict:
                 curr_eb = f"{eb_title}: {eb_desc}" if eb_desc else eb_title
             elif curr_eb and is_sub:
                 sub = line.replace('**', '').replace('`', '').lstrip(' -•*').strip()
-                if 'running mean speed' in sub.lower() or 'running mean' in sub.lower():
-                    m_v = re.search(r'([0-9\.]+\s*rpm)', sub)
-                    if m_v: curr_subs.append(f"Running Mean: {m_v.group(1)}")
-                elif 'stability corridor' in sub.lower():
-                    m_v = re.search(r'([0-9\.]+\s*[-–—]\s*[0-9\.]+\s*rpm)', sub)
-                    if m_v: curr_subs.append(f"Stable Corridor: {m_v.group(1)}")
-                elif 'optimum range' in sub.lower() or 'golden optimum' in sub.lower():
-                    m_v = re.search(r'([0-9\.]+\s*[-–—]\s*[0-9\.]+\s*rpm)', sub)
-                    if m_v: curr_subs.append(f"Golden Optimum: {m_v.group(1)}")
-                elif 'feed-to-speed' in sub.lower():
-                    m_v = re.search(r'([0-9\.]+\s*rpm\s*per\s*[0-9\.]+\s*t/h)', sub)
-                    if m_v: curr_subs.append(f"Kinematic Ratio: {m_v.group(1)}")
+                if ':' in sub:
+                    s_key, s_val = sub.split(':', 1)
+                    s_key_clean = re.sub(r'\s*\([^\)]*\)', '', s_key).strip()
+                    s_val_clean = s_val.split('(')[0].split(';')[0].strip()
+                    if s_key_clean and s_val_clean and 'evolution' not in s_key_clean.lower():
+                        curr_subs.append(f"{s_key_clean}: {s_val_clean}")
+                elif sub:
+                    curr_subs.append(sub.split('(')[0].strip())
 
         i += 1
 
@@ -1395,46 +1402,17 @@ def parse_markdown_ai_content(summary_text: str) -> dict:
 def scrub_residual_plant_names(prs_obj, target_plant: str, op_stats: dict = None):
     """
     Universal failsafe sanitizer:
-    Scrubs any lingering template customer references across all slides, shapes, tables, and notes.
+    Replaces generic template placeholder tokens ('Plant Operations') with the active plant name.
+    Zero hardcoded customer names or dataset numbers.
     """
     if not target_plant:
         target_plant = "Plant Operations"
-    short_target = target_plant.split()[0].title()
     
     replacements = [
-        ("Bursa Çimento", target_plant),
-        ("Bursa Cimento", target_plant),
-        ("BURSA ÇIMENTO", target_plant.upper()),
-        ("BURSA CIMENTO", target_plant.upper()),
-        ("Bursa", short_target),
-        ("BURSA", short_target.upper()),
-        ("Yanbu Cement", target_plant),
-        ("YANBU CEMENT", target_plant.upper()),
-        ("Yanbu", short_target),
-        ("YANBU", short_target.upper()),
-        ("SPCC", target_plant),
-        ("Bursa_Cimento_Optimized.xlsx", f"{short_target}_Process_Telemetry.csv"),
-        ("Pyro_minute_data_grouped_final_with_lab.csv", f"{short_target}_Pyro_Telemetry.csv"),
-        ("370 t/h", op_stats.get("feed_avg", "nominal throughput") if op_stats else "nominal throughput"),
-        ("370t/h", op_stats.get("feed_avg", "nominal throughput") if op_stats else "nominal throughput"),
+        ("Plant Plant Operations", target_plant),
+        ("Plant Operations", target_plant),
+        ("PLANT OPERATIONS", target_plant.upper()),
     ]
-
-    if op_stats:
-        feed_str = op_stats.get("feed_avg")
-        if feed_str and feed_str != "598.8 t/h":
-            replacements.extend([("598.8 t/h", feed_str), ("340.9 t/h", feed_str), ("370 t/h", feed_str), ("370t/h", feed_str)])
-        clinker_str = op_stats.get("clinker_val")
-        if clinker_str and clinker_str != "386.3 t/h":
-            replacements.extend([("386.3 t/h", clinker_str)])
-        sec_str = op_stats.get("sec_air_avg")
-        if sec_str and "1033.5" not in sec_str:
-            replacements.extend([("1033.5 °C", sec_str), ("1033.5°C", sec_str), ("811.5°C", sec_str)])
-        fuel_str = op_stats.get("fuel_avg")
-        if fuel_str and fuel_str != "30.33 t/h":
-            replacements.extend([("30.33 t/h", fuel_str), ("20.39 t/h", fuel_str)])
-        qual_str = op_stats.get("quality_avg")
-        if qual_str and qual_str != "1.25%":
-            replacements.extend([("1.25%", qual_str), ("2.03%", qual_str)])
 
     # Only replace coal references if plant does NOT use coal
     if not op_stats or op_stats.get("fuel_type") != "Coal":
@@ -1520,14 +1498,8 @@ def compile_presentation_manifest(prs, data: dict) -> dict:
         
     raw_dataset = data.get("dataset_name")
     if not raw_dataset or raw_dataset in ["Uploaded Dataset", "Process_Telemetry.csv"]:
-        if "MIZU" in (ai_summary + plant_name).upper():
-            dataset_name = "MIZU2026_merged_process_quality.csv"
-        elif "BURSA" in (ai_summary + plant_name).upper():
-            dataset_name = "Bursa_Cimento_Process_Telemetry.csv"
-        elif "YANBU" in (ai_summary + plant_name).upper():
-            dataset_name = "Yanbu_Process_Telemetry.csv"
-        else:
-            dataset_name = f"{plant_name} Operational Telemetry"
+        m_ds = re.search(r'\b([A-Za-z0-9_\-]+\.(?:csv|xlsx|parquet))\b', ai_summary, re.I)
+        dataset_name = m_ds.group(1) if m_ds else f"{plant_name} Operational Telemetry"
     else:
         dataset_name = raw_dataset
     date_str = data.get("date") or ""
@@ -1905,66 +1877,66 @@ def render_presentation_from_manifest(prs, manifest: dict):
         # 4. Update Slide 4 (Operational Profile: Kiln Feed, Firing & Pyro Architecture)
         if len(prs.slides) >= 4:
             s4 = prs.slides[3]
-            feed_val = op_stats.get("feed_avg") or "220.0 t/h"
-            feed_pk = op_stats.get("feed_peak") or (f"{float(re.sub(r'[^0-9.]', '', feed_val))*1.1:.1f} t/h" if re.search(r'[0-9]', feed_val) else "Peak Rate")
-            feed_cor = op_stats.get("feed_corridor") or "Stable Corridor"
-            feed_opt = op_stats.get("feed_optimum") or "Golden Window"
-            clinker_val = op_stats.get("clinker_val") or (f"{float(re.sub(r'[^0-9.]', '', feed_val))/1.55:.1f} t/h" if re.search(r'[0-9]', feed_val) else "Derived Clinker")
-            speed_val = op_stats.get("speed_avg") or "3.80 rpm"
-            speed_pk = op_stats.get("speed_peak") or (f"{float(re.sub(r'[^0-9.]', '', speed_val))*1.08:.2f} rpm" if re.search(r'[0-9]', speed_val) else "Peak RPM")
-            speed_cor = op_stats.get("speed_corridor") or "Stable Speed Window"
-            current_val = op_stats.get("current_avg") or "Drive Current"
-            current_pk = op_stats.get("current_peak") or "Peak Amps"
-            current_cor = op_stats.get("current_corridor") or "Drive Load Window"
+            feed_val = op_stats.get("feed_avg") or ""
+            feed_pk = op_stats.get("feed_peak") or ""
+            feed_cor = op_stats.get("feed_corridor") or ""
+            feed_opt = op_stats.get("feed_optimum") or ""
+            clinker_val = op_stats.get("clinker_val") or ""
+            speed_val = op_stats.get("speed_avg") or ""
+            speed_pk = op_stats.get("speed_peak") or ""
+            speed_cor = op_stats.get("speed_corridor") or ""
+            current_val = op_stats.get("current_avg") or ""
+            current_pk = op_stats.get("current_peak") or ""
+            current_cor = op_stats.get("current_corridor") or ""
             
-            sec_air_val = op_stats.get("sec_air_avg") or "1050.0 °C"
-            sec_air_pk = op_stats.get("sec_air_peak") or (f"{float(re.sub(r'[^0-9.]', '', sec_air_val))*1.05:.1f} °C" if re.search(r'[0-9]', sec_air_val) else "Peak Temp")
-            sec_air_cor = op_stats.get("sec_air_corridor") or "Optimal Thermal Window"
+            sec_air_val = op_stats.get("sec_air_avg") or ""
+            sec_air_pk = op_stats.get("sec_air_peak") or ""
+            sec_air_cor = op_stats.get("sec_air_corridor") or ""
             
-            fuel_type = op_stats.get("fuel_type", "Coal")
+            fuel_type = op_stats.get("fuel_type", "Fuel")
             fuel_label = op_stats.get("fuel_label", "Total Fuel Rate")
-            fuel_val = op_stats.get("fuel_avg") or "Thermal Baseload"
-            fuel_cor = op_stats.get("fuel_corridor") or "Fuel Firing Corridor"
-            fuel_tgt = op_stats.get("fuel_target") or "Fuel Target Corridor"
+            fuel_val = op_stats.get("fuel_avg") or ""
+            fuel_cor = op_stats.get("fuel_corridor") or ""
+            fuel_tgt = op_stats.get("fuel_target") or ""
             
-            coal_main = op_stats.get("coal_main") or "Main Burner Coal"
-            coal_main_cor = op_stats.get("coal_main_corridor") or "Main Firing Window"
-            calciner_coal = op_stats.get("calciner_coal") or "Calciner Coal"
-            calciner_coal_cor = op_stats.get("calciner_coal_corridor") or "Calciner Firing Window"
+            coal_main = op_stats.get("coal_main") or ""
+            coal_main_cor = op_stats.get("coal_main_corridor") or ""
+            calciner_coal = op_stats.get("calciner_coal") or ""
+            calciner_coal_cor = op_stats.get("calciner_coal_corridor") or ""
             
-            oil_main = op_stats.get("oil_main") or "Main Burner Fuel"
-            oil_cor = op_stats.get("oil_corridor") or "Main Firing Window"
-            oil_pk = op_stats.get("oil_peak") or "Peak Fuel Flow"
-            calciner_oil = op_stats.get("calciner_oil") or "Calciner Fuel"
+            oil_main = op_stats.get("oil_main") or ""
+            oil_cor = op_stats.get("oil_corridor") or ""
+            oil_pk = op_stats.get("oil_peak") or ""
+            calciner_oil = op_stats.get("calciner_oil") or ""
             
-            sfc_baseline = op_stats.get("sfc_baseline") or "740–755 kcal/kg"
-            sfc_optimum = op_stats.get("sfc_optimum") or "720–735 kcal/kg"
+            sfc_baseline = op_stats.get("sfc_baseline") or ""
+            sfc_optimum = op_stats.get("sfc_optimum") or ""
             
-            quality_val = op_stats.get("quality_avg") or "1.35%"
-            quality_cor = op_stats.get("quality_corridor") or "0.54 – 1.84%"
-            quality_tgt = op_stats.get("quality_target") or "0.80 – 1.40%"
+            quality_val = op_stats.get("quality_avg") or ""
+            quality_cor = op_stats.get("quality_corridor") or ""
+            quality_tgt = op_stats.get("quality_target") or ""
             
-            liter_weight_val = op_stats.get("liter_weight_val") or "1,040 g/L"
-            liter_weight_cor = op_stats.get("liter_weight_corridor") or "1,010 – 1,060 g/L"
-            liter_weight_tgt = op_stats.get("liter_weight_target") or "1,040 – 1,120 g/L"
+            liter_weight_val = op_stats.get("liter_weight_val") or ""
+            liter_weight_cor = op_stats.get("liter_weight_corridor") or ""
+            liter_weight_tgt = op_stats.get("liter_weight_target") or ""
             
-            c3s_val = op_stats.get("c3s_val") or "64.24%"
-            c3s_tgt = op_stats.get("c3s_target") or "60.00 – 66.00%"
-            c2s_val = op_stats.get("c2s_val") or "12.76%"
-            c2s_tgt = op_stats.get("c2s_target") or "11.00 – 16.00%"
-            lsf_val = op_stats.get("lsf_val") or "99.11%"
-            lsf_tgt = op_stats.get("lsf_target") or "96.00 – 99.00%"
+            c3s_val = op_stats.get("c3s_val") or ""
+            c3s_tgt = op_stats.get("c3s_target") or ""
+            c2s_val = op_stats.get("c2s_val") or ""
+            c2s_tgt = op_stats.get("c2s_target") or ""
+            lsf_val = op_stats.get("lsf_val") or ""
+            lsf_tgt = op_stats.get("lsf_target") or ""
             
-            draft_corr = op_stats.get("draft_corr") or "+0.992"
-            id_fan_corr = op_stats.get("id_fan_corr") or "+0.999"
-            cooler_bed_corr = op_stats.get("cooler_bed_corr") or "+0.991"
-            fan_corr = op_stats.get("fan_corr") or "+0.991"
-            feed_speed_corr = op_stats.get("feed_speed_corr") or "+0.939"
-            sintering_temp_avg = op_stats.get("sintering_temp_avg") or "1,261.1 °C"
-            sintering_temp_corridor = op_stats.get("sintering_temp_corridor") or "1,226.3 – 1,297.4 °C"
-            sintering_temp_target = op_stats.get("sintering_temp_target") or "1,226.2 – 1,297.3 °C"
-            chamber2_avg = op_stats.get("chamber2_avg") or "62.3 mbar"
-            chamber3_avg = op_stats.get("chamber3_avg") or "62.5 mbar"
+            draft_corr = op_stats.get("draft_corr") or ""
+            id_fan_corr = op_stats.get("id_fan_corr") or ""
+            cooler_bed_corr = op_stats.get("cooler_bed_corr") or ""
+            fan_corr = op_stats.get("fan_corr") or cooler_bed_corr
+            feed_speed_corr = op_stats.get("feed_speed_corr") or ""
+            sintering_temp_avg = op_stats.get("sintering_temp_avg") or ""
+            sintering_temp_corridor = op_stats.get("sintering_temp_corridor") or ""
+            sintering_temp_target = op_stats.get("sintering_temp_target") or ""
+            chamber2_avg = op_stats.get("chamber2_avg") or ""
+            chamber3_avg = op_stats.get("chamber3_avg") or ""
 
             for sh in s4.shapes:
                 if sh.has_text_frame and "318" in sh.name:
@@ -1980,59 +1952,200 @@ def render_presentation_from_manifest(prs, manifest: dict):
                             full_txt = tf.text
                             if "TAG: KILN FEED" in full_txt or "Kiln Feed Statistics" in full_txt or "Kiln Feed" in full_txt:
                                 if len(tf.paragraphs) >= 10:
-                                    tf.paragraphs[0].text = feed_val
+                                    tf.paragraphs[0].text = feed_val if feed_val else (speed_val if speed_val else "Feed & Speed")
                                     tf.paragraphs[1].text = "01. Kiln Feed & Kinematic Drive Dynamics"
                                     tf.paragraphs[2].text = "TAG: KILN FEED & ROTATIONAL SPEED"
-                                    tf.paragraphs[3].text = f"High-Capacity Meal Feeding: Sustained raw meal feeding averaging {feed_val} (peaking at {feed_pk}, stable corridor {feed_cor})."
-                                    tf.paragraphs[4].text = f"Clinker Production: Mean {clinker_val} clinker (derived at 1.55 meal-to-clinker ratio)."
-                                    tf.paragraphs[5].text = f"Kiln Rotational Speed: Mean {speed_val} (optimal running window {speed_cor}, peaking at {speed_pk})."
-                                    tf.paragraphs[6].text = f"Drive Synchronization: Tight kinematic coupling (r = {feed_speed_corr}) between kiln rotational speed and feed."
+                                    
+                                    feed_line = f"High-Capacity Meal Feeding: Sustained raw meal feeding averaging {feed_val}" if feed_val else "High-Capacity Meal Feeding: Controlled raw meal volumetric feeding"
+                                    feed_parts = []
+                                    if feed_pk: feed_parts.append(f"peaking at {feed_pk}")
+                                    if feed_cor: feed_parts.append(f"stable corridor {feed_cor}")
+                                    if feed_parts: feed_line += f" ({', '.join(feed_parts)})."
+                                    else: feed_line += "."
+                                    tf.paragraphs[3].text = feed_line
+
+                                    if clinker_val:
+                                        tf.paragraphs[4].text = f"Clinker Production: Mean {clinker_val} clinker (derived at 1.55 meal-to-clinker ratio)."
+                                    else:
+                                        tf.paragraphs[4].text = "Clinker Production: Derived clinker mass balance synchronized with feed rate."
+
+                                    speed_line = f"Kiln Rotational Speed: Mean {speed_val}" if speed_val else "Kiln Rotational Speed: Shell rotational velocity"
+                                    speed_parts = []
+                                    if speed_cor: speed_parts.append(f"optimal running window {speed_cor}")
+                                    if speed_pk: speed_parts.append(f"peaking at {speed_pk}")
+                                    if speed_parts: speed_line += f" ({', '.join(speed_parts)})."
+                                    else: speed_line += "."
+                                    tf.paragraphs[5].text = speed_line
+
+                                    corr_part = f" (r = {feed_speed_corr})" if feed_speed_corr else ""
+                                    tf.paragraphs[6].text = f"Drive Synchronization: Kinematic coupling{corr_part} between kiln rotational speed and feed."
                                     tf.paragraphs[7].text = "DRIVE TORQUE & VOLUMETRIC BED LOADING"
-                                    tf.paragraphs[8].text = f"Main Drive Current: Mean {current_val} (stable corridor {current_cor}, peak {current_pk})." if current_val and current_val != "Drive Current" else f"Kinematic Synchronization: Feed-to-speed coupling (r = {feed_speed_corr}) regulates bed filling degree."
-                                    tf.paragraphs[9].text = f"Throughput Potential: Golden Batch targets {feed_opt} feed corridor."
+                                    if current_val:
+                                        cur_line = f"Main Drive Current: Mean {current_val}"
+                                        cur_parts = []
+                                        if current_cor: cur_parts.append(f"stable corridor {current_cor}")
+                                        if current_pk: cur_parts.append(f"peak {current_pk}")
+                                        if cur_parts: cur_line += f" ({', '.join(cur_parts)})."
+                                        else: cur_line += "."
+                                        tf.paragraphs[8].text = cur_line
+                                    else:
+                                        tf.paragraphs[8].text = f"Kinematic Synchronization: Feed-to-speed coupling{corr_part} regulates bed filling degree."
+
+                                    if feed_opt:
+                                        tf.paragraphs[9].text = f"Throughput Potential: Golden Batch targets {feed_opt} feed corridor."
+                                    else:
+                                        tf.paragraphs[9].text = "Throughput Potential: Optimized throughput targets steady-state operating window."
                             elif "THERMAL ENTHALPY" in full_txt or "Dual Fuel Firing" in full_txt or "Recuperation" in full_txt:
                                 if len(tf.paragraphs) >= 11:
-                                    tf.paragraphs[0].text = sec_air_val
+                                    tf.paragraphs[0].text = sec_air_val if sec_air_val else (fuel_val if fuel_val else "Thermal Energy")
                                     tf.paragraphs[1].text = f"02. Heat Recuperation & {fuel_type} Firing"
                                     tf.paragraphs[2].text = f"THERMAL ENTHALPY & {fuel_type.upper()} COMBUSTION"
-                                    tf.paragraphs[3].text = f"Secondary Air Temp: Mean {sec_air_val} (stable corridor {sec_air_cor}; peak {sec_air_pk})."
+                                    
+                                    sec_line = f"Secondary Air Temp: Mean {sec_air_val}" if sec_air_val else "Secondary Air Temp: Cooler heat recuperation sustained"
+                                    sec_parts = []
+                                    if sec_air_cor: sec_parts.append(f"stable corridor {sec_air_cor}")
+                                    if sec_air_pk: sec_parts.append(f"peak {sec_air_pk}")
+                                    if sec_parts: sec_line += f" ({'; '.join(sec_parts)})."
+                                    else: sec_line += "."
+                                    tf.paragraphs[3].text = sec_line
+
                                     if fuel_type == "Coal":
-                                        tf.paragraphs[4].text = f"Main Burner Coal: Mean {coal_main} (stable corridor {coal_main_cor})."
-                                        tf.paragraphs[5].text = f"Calciner Coal: Mean {calciner_coal} (stable corridor {calciner_coal_cor}) across precalciner."
-                                        tf.paragraphs[6].text = f"Total Coal Rate: Mean {fuel_val} (stable corridor {fuel_cor}; target {fuel_tgt})."
+                                        coal_m_txt = f"Main Burner Coal: Mean {coal_main}" if coal_main else "Main Burner Coal: Primary flame baseload"
+                                        if coal_main_cor: coal_m_txt += f" (stable corridor {coal_main_cor})."
+                                        else: coal_m_txt += "."
+                                        tf.paragraphs[4].text = coal_m_txt
+
+                                        calc_c_txt = f"Calciner Coal: Mean {calciner_coal}" if calciner_coal else "Calciner Coal: Precalciner fuel firing"
+                                        if calciner_coal_cor: calc_c_txt += f" (stable corridor {calciner_coal_cor}) across precalciner."
+                                        else: calc_c_txt += " across precalciner."
+                                        tf.paragraphs[5].text = calc_c_txt
+
+                                        tot_c_txt = f"Total Coal Rate: Mean {fuel_val}" if fuel_val else "Total Coal Rate: Thermal energy balanced across kiln system"
+                                        tot_parts = []
+                                        if fuel_cor: tot_parts.append(f"stable corridor {fuel_cor}")
+                                        if fuel_tgt: tot_parts.append(f"target {fuel_tgt}")
+                                        if tot_parts: tot_c_txt += f" ({'; '.join(tot_parts)})."
+                                        else: tot_c_txt += "."
+                                        tf.paragraphs[6].text = tot_c_txt
                                     else:
-                                        tf.paragraphs[4].text = f"Main Burner Fuel: Mean {oil_main} (optimal corridor {oil_cor}; peak {oil_pk})."
-                                        tf.paragraphs[5].text = f"Calciner Fuel: Mean {calciner_oil} across calciners ensuring complete decarbonation."
-                                        tf.paragraphs[6].text = f"Total Heavy Fuel Oil: Mean {fuel_val} (stable corridor {fuel_cor}; target {fuel_tgt})."
+                                        oil_m_txt = f"Main Burner Fuel: Mean {oil_main}" if oil_main else "Main Burner Fuel: Primary flame baseload"
+                                        oil_parts = []
+                                        if oil_cor: oil_parts.append(f"optimal corridor {oil_cor}")
+                                        if oil_pk: oil_parts.append(f"peak {oil_pk}")
+                                        if oil_parts: oil_m_txt += f" ({'; '.join(oil_parts)})."
+                                        else: oil_m_txt += "."
+                                        tf.paragraphs[4].text = oil_m_txt
+
+                                        calc_o_txt = f"Calciner Fuel: Mean {calciner_oil} across calciners ensuring complete decarbonation." if calciner_oil else "Calciner Fuel: Complete decarbonation thermal energy across calciners."
+                                        tf.paragraphs[5].text = calc_o_txt
+
+                                        tot_f_txt = f"Total Fuel Rate: Mean {fuel_val}" if fuel_val else "Total Fuel Rate: Combined thermal firing rate"
+                                        tot_parts = []
+                                        if fuel_cor: tot_parts.append(f"stable corridor {fuel_cor}")
+                                        if fuel_tgt: tot_parts.append(f"target {fuel_tgt}")
+                                        if tot_parts: tot_f_txt += f" ({'; '.join(tot_parts)})."
+                                        else: tot_f_txt += "."
+                                        tf.paragraphs[6].text = tot_f_txt
+
                                     tf.paragraphs[7].text = "BURNING ZONE ENTHALPY & ATMOSPHERE"
-                                    tf.paragraphs[8].text = "Secondary Air Enthalpy: Uncorrupted thermal proxy providing recuperated kiln enthalpy."
-                                    tf.paragraphs[9].text = f"Specific Heat Consumption: Baseline {sfc_baseline} (Golden Batch target {sfc_optimum})."
+                                    tf.paragraphs[8].text = "Secondary Air Enthalpy: Recuperated thermal energy supporting fuel ignition and combustion."
+                                    if sfc_baseline:
+                                        sfc_text = f"Specific Heat Consumption: Baseline {sfc_baseline}"
+                                        if sfc_optimum: sfc_text += f" (Golden Batch target {sfc_optimum})."
+                                        else: sfc_text += "."
+                                        tf.paragraphs[9].text = sfc_text
+                                    else:
+                                        tf.paragraphs[9].text = "Specific Heat Consumption: Thermal efficiency optimized via air recuperation."
                                     tf.paragraphs[10].text = "Thermal Momentum: Coordinated fuel injection stabilizing clinker sintering bed."
                             elif "LAB ASSAYS" in full_txt or "Clinker Quality & Aerodynamics" in full_txt or "Quality" in full_txt:
                                 if len(tf.paragraphs) >= 11:
-                                    if op_stats.get("liter_weight_val") or op_stats.get("c3s_val") or (quality_val and quality_val != "1.35%"):
-                                        tf.paragraphs[0].text = quality_val
+                                    if quality_val or liter_weight_val or c3s_val:
+                                        tf.paragraphs[0].text = quality_val if quality_val else (liter_weight_val if liter_weight_val else "Clinker Quality")
                                         tf.paragraphs[1].text = "03. Clinker Mineralogy & Quality Assays"
                                         tf.paragraphs[2].text = "LAB ASSAYS & CLINKER QUALITY"
-                                        tf.paragraphs[3].text = f"Clinker Free Lime (CaO Livre): Mean {quality_val} (stable corridor {quality_cor}; target {quality_tgt})."
-                                        tf.paragraphs[4].text = f"Quality Guardrail: Stabilizing Free Lime strictly within {quality_tgt} ensures soundness and reactivity."
-                                        tf.paragraphs[5].text = f"Clinker Liter Weight: Mean {liter_weight_val} (corridor {liter_weight_cor}; target {liter_weight_tgt})."
+                                        
+                                        fcao_txt = f"Clinker Free Lime (CaO Livre): Mean {quality_val}" if quality_val else "Clinker Free Lime: Chemical reactivity within control corridor"
+                                        q_parts = []
+                                        if quality_cor: q_parts.append(f"stable corridor {quality_cor}")
+                                        if quality_tgt: q_parts.append(f"target {quality_tgt}")
+                                        if q_parts: fcao_txt += f" ({'; '.join(q_parts)})."
+                                        else: fcao_txt += "."
+                                        tf.paragraphs[3].text = fcao_txt
+
+                                        if quality_tgt:
+                                            tf.paragraphs[4].text = f"Quality Guardrail: Stabilizing Free Lime strictly within {quality_tgt} ensures soundness and reactivity."
+                                        else:
+                                            tf.paragraphs[4].text = "Quality Guardrail: Free lime stabilization ensures sound clinker reactivity and low expansion."
+
+                                        lw_txt = f"Clinker Liter Weight: Mean {liter_weight_val}" if liter_weight_val else "Clinker Liter Weight: Clinker bulk density monitoring"
+                                        lw_parts = []
+                                        if liter_weight_cor: lw_parts.append(f"corridor {liter_weight_cor}")
+                                        if liter_weight_tgt: lw_parts.append(f"target {liter_weight_tgt}")
+                                        if lw_parts: lw_txt += f" ({'; '.join(lw_parts)})."
+                                        else: lw_txt += "."
+                                        tf.paragraphs[5].text = lw_txt
+
                                         tf.paragraphs[6].text = "MINERALOGY & SINTERING KINETICS"
-                                        tf.paragraphs[7].text = f"Alite (C3S) & Belite (C2S): Mean {c3s_val} C3S (target {c3s_tgt}) and {c2s_val} C2S (target {c2s_tgt})."
-                                        tf.paragraphs[8].text = f"Lime Saturation Factor (LSF): Mean {lsf_val} (target {lsf_tgt}) governing chemical combinability."
-                                        tf.paragraphs[9].text = f"Preheater Tower Symmetry: Near-perfect {draft_corr} draft correlation across twin preheater strings."
+                                        c3_txt = f"Alite (C3S) & Belite (C2S): Mean {c3s_val} C3S" if c3s_val else "Alite (C3S) & Belite (C2S): Mineral phase development"
+                                        if c3s_tgt: c3_txt += f" (target {c3s_tgt})"
+                                        if c2s_val:
+                                            c3_txt += f" and {c2s_val} C2S"
+                                            if c2s_tgt: c3_txt += f" (target {c2s_tgt})"
+                                        c3_txt += "."
+                                        tf.paragraphs[7].text = c3_txt
+
+                                        if lsf_val:
+                                            lsf_txt = f"Lime Saturation Factor (LSF): Mean {lsf_val}"
+                                            if lsf_tgt: lsf_txt += f" (target {lsf_tgt})"
+                                            lsf_txt += " governing chemical combinability."
+                                            tf.paragraphs[8].text = lsf_txt
+                                        else:
+                                            tf.paragraphs[8].text = "Lime Saturation Factor (LSF): Target chemical combinability and burnability."
+
+                                        d_corr_txt = f"Preheater Tower Symmetry: Near-perfect {draft_corr} draft correlation across twin preheater strings." if draft_corr else "Preheater Tower Symmetry: Balanced aerodynamic draught across twin preheater strings."
+                                        tf.paragraphs[9].text = d_corr_txt
                                         tf.paragraphs[10].text = f"Dataset: {deck_meta.get('dataset_name', f'{plant_name} Operational Telemetry')}"
                                     else:
-                                        tf.paragraphs[0].text = sintering_temp_avg or sec_air_val
+                                        tf.paragraphs[0].text = sintering_temp_avg or sec_air_val or "Sintering Thermal State"
                                         tf.paragraphs[1].text = "03. Thermal Sintering & Aerodynamics"
                                         tf.paragraphs[2].text = "PYROMETRY & AERODYNAMICS"
-                                        tf.paragraphs[3].text = f"Sintering Pyrometer Temp: Mean {sintering_temp_avg} (stable corridor {sintering_temp_corridor}; target {sintering_temp_target})."
-                                        tf.paragraphs[4].text = f"Thermal Guardrail: Maintaining sintering pyrometry within {sintering_temp_target} ensures complete alite crystal growth without refractory stress."
+                                        if sintering_temp_avg:
+                                            sint_txt = f"Sintering Pyrometer Temp: Mean {sintering_temp_avg}"
+                                            sint_parts = []
+                                            if sintering_temp_corridor: sint_parts.append(f"stable corridor {sintering_temp_corridor}")
+                                            if sintering_temp_target: sint_parts.append(f"target {sintering_temp_target}")
+                                            if sint_parts: sint_txt += f" ({'; '.join(sint_parts)})."
+                                            else: sint_txt += "."
+                                            tf.paragraphs[3].text = sint_txt
+                                            if sintering_temp_target:
+                                                tf.paragraphs[4].text = f"Thermal Guardrail: Maintaining sintering pyrometry within {sintering_temp_target} ensures complete alite crystal growth without refractory stress."
+                                            else:
+                                                tf.paragraphs[4].text = "Thermal Guardrail: Sintering temperature stabilization ensures alite crystal growth without refractory wear."
+                                        else:
+                                            tf.paragraphs[3].text = "Sintering Pyrometer Temp: Stable burning zone optical thermal state."
+                                            tf.paragraphs[4].text = "Thermal Guardrail: Burning zone thermal stabilization preserves refractory brick lining."
                                         tf.paragraphs[5].text = "Tertiary Air Recuperation: Secondary and tertiary air ducts supply preheated oxygen for combustion."
                                         tf.paragraphs[6].text = "AERODYNAMICS & FAN POWER"
-                                        tf.paragraphs[7].text = f"Preheater Tower Symmetry: Near-perfect {draft_corr} draft correlation between String 1 and String 2 ({id_fan_corr} with ID fan)."
+                                        
+                                        d_txt = "Preheater Tower Symmetry: "
+                                        if draft_corr:
+                                            d_txt += f"Tight {draft_corr} draft correlation between String 1 and String 2"
+                                            if id_fan_corr: d_txt += f" ({id_fan_corr} with ID fan)."
+                                            else: d_txt += "."
+                                        else:
+                                            d_txt += "Balanced aerodynamic draught across preheater strings and ID fan."
+                                        tf.paragraphs[7].text = d_txt
+
                                         tf.paragraphs[8].text = "Precalciner PC Gas Temp: Stable thermal profile ensuring complete apparent meal calcination."
-                                        tf.paragraphs[9].text = f"Cooler Bed Continuity: Chamber 2 and Chamber 3 pressures correlate {cooler_bed_corr} ({chamber2_avg} / {chamber3_avg})."
+                                        
+                                        c_txt = "Cooler Bed Continuity: "
+                                        if cooler_bed_corr:
+                                            c_txt += f"Chamber pressures correlate {cooler_bed_corr}"
+                                            if chamber2_avg and chamber3_avg: c_txt += f" ({chamber2_avg} / {chamber3_avg})."
+                                            else: c_txt += "."
+                                        else:
+                                            c_txt += "Stable undergrate chamber pressures ensuring hydraulic bed permeability."
+                                        tf.paragraphs[9].text = c_txt
                                         tf.paragraphs[10].text = f"Dataset: {deck_meta.get('dataset_name', f'{plant_name} Operational Telemetry')}"
 
         # 5. Update Slide 5 (Section Divider)
@@ -2066,16 +2179,34 @@ def render_presentation_from_manifest(prs, manifest: dict):
                         p0.font.size = Pt(12)
                         p0.font.bold = True
                         p0.font.color.rgb = COLOR_LIME_YELLOW
-                        fallback_corr = [
-                            f"Twin-String Aerodynamic Draught Symmetry ({op_stats.get('draft_corr', '+0.992')}): String 1 vs String 2 draft balance confirming cyclone symmetry.",
-                            f"Total Aerodynamic Draught Alignment ({op_stats.get('id_fan_corr', '+0.999')}): Preheater draft alignment with ID fan suction draught.",
-                            f"Undergrate Clinker Bed Continuity ({op_stats.get('cooler_bed_corr', '+0.991')}): Chamber 2 vs Chamber 3 undergrate hydraulic permeability.",
-                            f"Kinematic Feed-to-Speed Sync ({op_stats.get('feed_speed_corr', '+0.939')}): Kiln shell speed tightly coupled with feed to preserve 11–13% bed filling degree.",
-                            f"Precalciner Thermal Tracking ({op_stats.get('calciner_speed_corr', '+0.902')}): Calciner fuel firing scaled synchronously with rotational speed.",
-                            f"Precalciner Endothermic Meal Demand ({op_stats.get('calciner_feed_corr', '+0.861')}): Precalciner fuel firing rate tracking raw meal endothermic demand.",
-                            f"Drive Motor Current vs Fuel Rate ({op_stats.get('drive_coal_corr', '+0.867')}): Flame thermal load increasing clinker liquid coating and torque resistance.",
-                            f"Cooler Recuperation Coupling ({op_stats.get('recup_corr', '+0.880')}): Secondary and tertiary air temperatures coupled in heat recovery."
-                        ]
+                        fallback_corr = []
+                        if op_stats.get("draft_corr"):
+                            fallback_corr.append(f"Twin-String Aerodynamic Draught Symmetry ({op_stats['draft_corr']}): String 1 vs String 2 draft balance confirming cyclone symmetry.")
+                        if op_stats.get("id_fan_corr"):
+                            fallback_corr.append(f"Total Aerodynamic Draught Alignment ({op_stats['id_fan_corr']}): Preheater draft alignment with ID fan suction draught.")
+                        if op_stats.get("cooler_bed_corr"):
+                            fallback_corr.append(f"Undergrate Clinker Bed Continuity ({op_stats['cooler_bed_corr']}): Chamber 2 vs Chamber 3 undergrate hydraulic permeability.")
+                        if op_stats.get("feed_speed_corr"):
+                            fallback_corr.append(f"Kinematic Feed-to-Speed Sync ({op_stats['feed_speed_corr']}): Kiln shell speed tightly coupled with feed to preserve bed filling degree.")
+                        if op_stats.get("calciner_speed_corr"):
+                            fallback_corr.append(f"Precalciner Thermal Tracking ({op_stats['calciner_speed_corr']}): Calciner fuel firing scaled synchronously with rotational speed.")
+                        if op_stats.get("calciner_feed_corr"):
+                            fallback_corr.append(f"Precalciner Endothermic Meal Demand ({op_stats['calciner_feed_corr']}): Precalciner fuel firing rate tracking raw meal endothermic demand.")
+                        if op_stats.get("drive_coal_corr"):
+                            fallback_corr.append(f"Drive Motor Current vs Fuel Rate ({op_stats['drive_coal_corr']}): Flame thermal load increasing clinker liquid coating and torque resistance.")
+                        if op_stats.get("recup_corr"):
+                            fallback_corr.append(f"Cooler Recuperation Coupling ({op_stats['recup_corr']}): Secondary and tertiary air temperatures coupled in heat recovery.")
+                        if not fallback_corr:
+                            fallback_corr = [
+                                "Twin-String Aerodynamic Draught Symmetry: Balanced draught distribution across cyclone strings.",
+                                "Total Aerodynamic Draught Alignment: Preheater draft alignment with ID fan suction draught.",
+                                "Undergrate Clinker Bed Continuity: Chamber undergrate hydraulic permeability.",
+                                "Kinematic Feed-to-Speed Sync: Kiln shell speed synchronized with raw meal feed rate.",
+                                "Precalciner Thermal Tracking: Calciner fuel firing scaled with rotational speed.",
+                                "Precalciner Endothermic Demand: Calciner fuel firing rate tracking meal demand.",
+                                "Drive Motor Current vs Fuel Rate: Thermal loading influencing kiln mechanical torque.",
+                                "Cooler Recuperation Coupling: Secondary and tertiary air temperatures coupled in heat recovery."
+                            ]
                         bullets_c = corr_bullets[:8] if corr_bullets else fallback_corr
                         for cb in bullets_c:
                             p = tf.add_paragraph()
@@ -2088,27 +2219,38 @@ def render_presentation_from_manifest(prs, manifest: dict):
         # 7. Update Slide 7 (Key Operational Findings & Diagnostic Assessment)
         if len(prs.slides) >= 7:
             s7 = prs.slides[6]
-            feed_corr = op_stats.get("feed_corridor") or "Stable Corridor"
-            speed_val_7 = op_stats.get("speed_avg") or "3.04 rpm"
-            speed_corr = op_stats.get("speed_corridor") or "3.00 – 3.10 rpm"
-            speed_opt = op_stats.get("speed_optimum") or "3.03 – 3.13 rpm"
-            sec_corr = op_stats.get("sec_air_corridor") or "Recuperation Window"
-            qual_tgt = op_stats.get("quality_target") or "Target Window"
-            feed_val_7 = op_stats.get("feed_avg") or "Kiln Feed"
-            clinker_val_7 = op_stats.get("clinker_val") or "Clinker Production"
-            sfc_opt_7 = op_stats.get("sfc_optimum") or "Target SFC"
-            quality_val_7 = op_stats.get("quality_avg") or "Target Free Lime"
-            draft_corr_7 = op_stats.get("draft_corr") or "+0.992"
-            fan_corr_7 = op_stats.get("cooler_bed_corr") or op_stats.get("fan_corr") or "+0.991"
-            feed_speed_corr_7 = op_stats.get("feed_speed_corr") or "+0.939"
-            fuel_type_7 = op_stats.get("fuel_type", "Fuel")
+            feed_val_7 = op_stats.get("feed_avg") or "nominal feed"
+            feed_corr_7 = f" (stable corridor {op_stats['feed_corridor']})" if op_stats.get("feed_corridor") else ""
+            clinker_val_7 = f", yielding ~{op_stats['clinker_val']} clinker" if op_stats.get("clinker_val") else ""
             
+            speed_str = ""
+            if op_stats.get("speed_avg"):
+                speed_str = f"({op_stats['speed_avg']}"
+                if op_stats.get("speed_corridor"):
+                    speed_str += f", stable corridor {op_stats['speed_corridor']}"
+                if op_stats.get("speed_optimum"):
+                    speed_str += f", golden optimum {op_stats['speed_optimum']}"
+                if op_stats.get("feed_speed_corr"):
+                    speed_str += f", r = {op_stats['feed_speed_corr']}"
+                speed_str += ")"
+            elif op_stats.get("feed_speed_corr"):
+                speed_str = f"(r = {op_stats['feed_speed_corr']})"
+
+            sec_air_str = f"averages {op_stats['sec_air_avg']}" if op_stats.get("sec_air_avg") else "sustains stable combustion enthalpy"
+            if op_stats.get("sec_air_corridor"):
+                sec_air_str += f" (stable corridor {op_stats['sec_air_corridor']})"
+
+            sfc_str = f", driving SFC toward {op_stats['sfc_optimum']}" if op_stats.get("sfc_optimum") else ""
+            draft_str = f"({op_stats['draft_corr']})" if op_stats.get("draft_corr") else ""
+            cooler_str = f"({op_stats['cooler_bed_corr']})" if op_stats.get("cooler_bed_corr") else ""
+            fuel_type_7 = op_stats.get("fuel_type", "fuel")
+
             fallback_exec_bullets = [
-                f"1. High-Capacity Volumetric Loading: The {plant_name} kiln operates at an average feed of {feed_val_7} (stable corridor {feed_corr}), yielding ~{clinker_val_7} clinker. Kinematic synchronization between feed rate and kiln speed ({speed_val_7}, stable corridor {speed_corr}, golden optimum {speed_opt}, r = {feed_speed_corr_7}) preserves an optimal filling degree (11–13%) and prevents drive overload.",
-                f"2. Thermal Recuperation as Fuel Flywheel: Clinker cooler heat recuperation sustains secondary air temperatures between {sec_corr}. Maintaining secondary air >1000°C directly substitutes {fuel_type_7.lower()} on the main burner, driving SFC toward {sfc_opt_7}.",
+                f"1. High-Capacity Volumetric Loading: The {plant_name} kiln operates at an average feed of {feed_val_7}{feed_corr_7}{clinker_val_7}. Kinematic synchronization between feed rate and kiln speed {speed_str} preserves an optimal bed filling degree and prevents drive overload.",
+                f"2. Thermal Recuperation as Fuel Flywheel: Clinker cooler heat recuperation {sec_air_str}. High-efficiency secondary air directly displaces {fuel_type_7.lower()} firing on the main burner{sfc_str}.",
                 f"3. Thermal Sintering Stability & Combustion: Coordinated fuel injection maintains stable sintering temperatures and calcination momentum, ensuring high alite mineral phase development and clinker soundness.",
-                f"4. Twin-String Aerodynamic Draught Balance: Preheater draft sensors correlate tightly ({draft_corr_7}), confirming equal gas distribution between twin strings and preventing localized cyclone blockages or incomplete calcination.",
-                f"5. Hydraulic Bed Resistance & Cooler Continuity: Cooler undergrate pressures correlate directly ({fan_corr_7}) across clinker chambers. Regulating grate speed to stabilize bed resistance eliminates blow-through and optimizes cooler aeration fan power consumption."
+                f"4. Twin-String Aerodynamic Draught Balance: Preheater draft sensors correlate tightly {draft_str}, confirming equal gas distribution between twin strings and preventing localized cyclone blockages or incomplete calcination.",
+                f"5. Hydraulic Bed Resistance & Cooler Continuity: Cooler undergrate pressures correlate directly {cooler_str} across clinker chambers. Regulating grate speed to stabilize bed resistance eliminates blow-through and optimizes cooler aeration fan power consumption."
             ]
             bullets_to_use = exec_bullets if exec_bullets else fallback_exec_bullets
 
