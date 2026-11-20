@@ -441,6 +441,8 @@
       <h2 class="text-xl font-tech neon-text uppercase border-b border-white/10 pb-4">🤖 Cognitive Intelligence Module</h2>
       <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
         <form onsubmit="return false;" class="md:col-span-1 space-y-4">
+          <!-- Hidden username field for accessibility / password manager compliance -->
+          <input type="text" name="username" autocomplete="username" class="hidden" aria-hidden="true" tabindex="-1" style="display:none;" />
           <div>
             <label class="block text-xs font-medium text-gray-400 uppercase mb-1">Access Protocol (API Key)</label>
             <input type="password" id="apiKey" autocomplete="current-password" placeholder="Secure Entry..." class="w-full p-2 rounded-lg" />
